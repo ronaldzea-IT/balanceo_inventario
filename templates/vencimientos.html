@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+{% block heading %}Vencimientos{% endblock %}
+
+{% block content %}
+<style>
+.toolbar { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+.toolbar input[type=text] { flex: 2; min-width: 200px; padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; outline: none; }
+.toolbar input[type=text]:focus { border-color: #2E75B6; }
+.btn-accion { padding: 10px 16px; background: #2E75B6; color: white; border: none; border-radius: 8px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
+.btn-accion:hover { background: #1F4E79; }
+
+.vista-toggle { display: flex; gap: 6px; background: #e6edf5; padding: 4px; border-radius: 8px; }
+.vista-toggle button { padding: 8px 14px; border: none; border-radius: 6px; background: transparent; font-size: 0.83rem; font-weight: 600; color: #1F4E79; cursor: pointer; }
+.vista-toggle button.active { background: #2E75B6; color: white; }
+
+.toolbar-prov { margin-bottom: 16px; }
+.dd-wrap-ancho { width: 100%; position: relative; }
+.dd-btn-ancho { width: 100%; padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.85rem; background: white; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.dd-btn-ancho:hover { border-color: #2E75B6; }
+.dd-btn-ancho.active { border-color: #2E75B6; }
+.dd-btn-ancho .arrow { font-size: 0.7rem; color: #999; flex-shrink: 0; }
+.dd-list-ancho { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: white; border: 2px solid #2E75B6; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 999; max-height: 320px; overflow-y: auto; }
+.dd-list-ancho.open { display: block; }
+.dd-search { padding: 8px 10px; border-bottom: 1px solid #eee; }
+.dd-search input { width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.82rem; outline: none; box-sizing: border-box; }
+.dd-item-single { padding: 8px 14px; cursor: pointer; font-size: 0.83rem; }
+.dd-item-single:hover { background: #f0f7ff; }
+.dd-item-single.selected { background: #EBF3FB; color: #1F4E79; font-weight: 600; }
+
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.kpi { border-radius: 14px; padding: 16px 18px; display: flex; align-items: center; gap: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.kpi-icono { width: 38px; height: 38px; flex-shrink: 0; background: rgba(255,255,255,0.25); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+.kpi-texto { min-width: 0; }
+.kpi-valor { font-size: 1.4rem; font-weight: 800; color: #fff; line-height: 1.1; }
+.kpi-label { font-size: 0.68rem; color: rgba(255,255,255,0.9); font-weight: 600; margin-top: 2px; }
+.kpi.c1 { background: linear-gradient(135deg, #6FA8F9 0%, #3A6FD8 100%); }
+.kpi.c2 { background: linear-gradient(135deg, #5B96F5 0%, #2E5FD9 100%); }
+.kpi.c3 { background: linear-gradient(135deg, #4F8EF7 0%, #2E5FD9 100%); }
+.kpi.c4 { background: linear-gradient(135deg, #4380EE 0%, #244EBF 100%); }
+.kpi.c5 { background: linear-gradient(135deg, #3B72E0 0%, #1F44AA 100%); }
+.kpi.c6 { background: linear-gradient(135deg, #325FC9 0%, #1A3990 100%); }
+
+.tabla-scroll { overflow-x: auto; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+table { width: 100%; min-width: 900px; border-collapse: collapse; background: white; font-size: 0.82rem; }
+thead th { background: #1F4E79; color: white; padding: 9px 10px; text-align: left; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; position: sticky; top: 0; cursor: pointer; white-space: nowrap; }
+thead th:hover { background: #2E75B6; }
+thead th.right { text-align: right; }
+thead th.center { text-align: center; }
+tbody tr { border-bottom: 1px solid #f5f5f5; transition: background 0.1s; }
+tbody tr:hover { background: #f8fbff; }
+tbody td { padding: 8px 10px; }
+tbody td.right { text-align: right; }
+tbody td.center { text-align: center; }
+.cod { font-weight: 700; color: #1F4E79; }
+.suc-badge { background: #1F4E79; color: white; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; }
+.suc-orig { background: #843C0C; color: white; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; }
+
+.dias-critico { color: #C00000; font-weight: 700; }
+.dias-alerta  { color: #C55A11; font-weight: 700; }
+.dias-normal  { color: #375623; font-weight: 700; }
+
+.est-riesgo    { background: #FFE0E0; color: #C00000; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; }
+.est-ok        { background: #E2EFDA; color: #375623; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; }
+.est-trasladar { background: #E2EFDA; color: #375623; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; }
+.est-sindest   { background: #FFE0E0; color: #C00000; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; white-space: normal; }
+
+.paginador { display: flex; align-items: center; justify-content: space-between; padding: 8px 4px; margin: 8px 0; font-size: 0.82rem; color: #666; }
+.pag-info { color: #888; }
+.pag-select { padding: 6px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.82rem; outline: none; background: white; cursor: pointer; }
+.pag-select:focus { border-color: #2E75B6; }
+
+.estado-area { background: white; border-radius: 10px; padding: 48px; text-align: center; color: #bbb; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border: 2px dashed #e0e0e0; }
+.spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #c8e0f5; border-top-color: #2E75B6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading { text-align: center; padding: 40px; color: #2E75B6; }
+
+.col-resaltada { background: #FFF6D9 !important; }
+th.col-resaltada { background: #C55A11 !important; }
+tr.fila-resaltada td { background: #E8F0FE !important; }
+tr.fila-resaltada td.col-resaltada { background: #FFE9A8 !important; }
+tr.fila-resaltada:hover td { background: #DCE7FB !important; }
+</style>
+
+<div class="toolbar">
+  <input type="text" id="searchInput" placeholder="Buscar SKU o descripcion..." oninput="filtrar()">
+  <div class="vista-toggle">
+    <button id="btnVistaResumen" class="active" onclick="cambiarVista('resumen')">Resumen SKU-Sucursal</button>
+    <button id="btnVistaBalanceo" onclick="cambiarVista('balanceo')">Sugerencia de Traslado</button>
+    <button id="btnVistaLotes" onclick="cambiarVista('lotes')">Detalle por Lote</button>
+  </div>
+  <button class="btn-accion" onclick="cargar()">&#x21BB; Recargar</button>
+</div>
+
+<div class="toolbar-prov">
+  <div class="dd-wrap-ancho" id="wrapProv">
+    <button class="dd-btn-ancho" id="btnProv" onclick="toggleProv()">
+      <span id="lblProv">Todos los proveedores</span><span class="arrow">&#9660;</span>
+    </button>
+    <div class="dd-list-ancho" id="listProv">
+      <div class="dd-search"><input type="text" id="searchProv" placeholder="Buscar proveedor..."></div>
+      <div id="itemsProv"></div>
+    </div>
+  </div>
+</div>
+
+<div class="kpi-row" id="kpiRow" style="display:none;">
+  <div class="kpi c1"><div class="kpi-icono">&#9203;</div><div class="kpi-texto"><div class="kpi-valor" id="kpiLotes">-</div><div class="kpi-label">Lotes Proximos a Vencer</div></div></div>
+  <div class="kpi c2"><div class="kpi-icono">&#9888;</div><div class="kpi-texto"><div class="kpi-valor" id="kpiSkusRiesgo">-</div><div class="kpi-label">SKU-Sucursal en Riesgo</div></div></div>
+  <div class="kpi c3"><div class="kpi-icono">&#128230;</div><div class="kpi-texto"><div class="kpi-valor" id="kpiUnidRiesgo">-</div><div class="kpi-label">Unidades en Riesgo</div></div></div>
+  <div class="kpi c4"><div class="kpi-icono">&#128666;</div><div class="kpi-texto"><div class="kpi-valor" id="kpiUnidTraslado">-</div><div class="kpi-label">Unidades a Trasladar</div></div></div>
+  <div class="kpi c5"><div class="kpi-icono">&#128683;</div><div class="kpi-texto"><div class="kpi-valor" id="kpiSinDestino">-</div><div class="kpi-label">Sin Destino (Evaluar Promo)</div></div></div>
+  <div class="kpi c6"><div class="kpi-icono">&#127970;</div><div class="kpi-texto"><div class="kpi-valor" id="kpiSucAfectadas">-</div><div class="kpi-label">Sucursales Afectadas</div></div></div>
+</div>
+
+<div id="contenido"><div class="loading"><div class="spinner"></div><br>Cargando vencimientos...</div></div>
+
+<script>
+let vista = "resumen";
+let datosResumen = [];
+let datosBalanceo = [];
+let datosLotes = [];
+let datosFiltrados = [];
+let paginaActual = 1;
+let POR_PAGINA = 25;
+let proveedoresList = [];
+let mapaNombresProv = {};
+let provSeleccionado = "";
+let sortCol = "";
+let sortAsc = true;
+let colResaltada = "";
+let filaResaltada = -1;
+
+function toggleProv() {
+  document.getElementById("listProv").classList.toggle("open");
+  document.getElementById("btnProv").classList.toggle("active");
+}
+document.addEventListener("click", function(e) {
+  const wp = document.getElementById("wrapProv");
+  if (wp && !wp.contains(e.target)) {
+    document.getElementById("listProv").classList.remove("open");
+    document.getElementById("btnProv").classList.remove("active");
+  }
+});
+
+async function poblarProv() {
+  try { const r = await fetch("/api/proveedores/lista"); proveedoresList = await r.json(); }
+  catch(e) { proveedoresList = []; }
+  mapaNombresProv = {};
+  proveedoresList.forEach(p => { mapaNombresProv[p.codigo] = p.nombre; });
+  const activos = Object.keys(localStorage)
+    .filter(k => k.startsWith("prov_activo_") && localStorage.getItem(k) === "1")
+    .map(k => k.replace("prov_activo_", ""));
+  provSeleccionado = activos.length > 0 ? activos[0] : "";
+  actualizarLabelProv();
+  renderProv();
+  document.getElementById("searchProv").addEventListener("input", function() {
+    const q = this.value.toLowerCase();
+    document.getElementById("itemsProv").querySelectorAll(".dd-item-single").forEach(el => {
+      el.style.display = el.textContent.toLowerCase().includes(q) ? "" : "none";
+    });
+  });
+}
+
+function renderProv() {
+  const cont = document.getElementById("itemsProv");
+  cont.innerHTML = "";
+  const divTodos = document.createElement("div");
+  divTodos.className = "dd-item-single" + (provSeleccionado === "" ? " selected" : "");
+  divTodos.textContent = "Todos los proveedores";
+  divTodos.addEventListener("click", function() {
+    provSeleccionado = "";
+    actualizarLabelProv(); renderProv(); cargar();
+    document.getElementById("listProv").classList.remove("open");
+    document.getElementById("btnProv").classList.remove("active");
+  });
+  cont.appendChild(divTodos);
+  proveedoresList.forEach(p => {
+    const div = document.createElement("div");
+    div.className = "dd-item-single" + (provSeleccionado === p.codigo ? " selected" : "");
+    div.textContent = p.codigo + " - " + p.nombre;
+    div.addEventListener("click", function() {
+      provSeleccionado = p.codigo;
+      actualizarLabelProv(); renderProv(); cargar();
+      document.getElementById("listProv").classList.remove("open");
+      document.getElementById("btnProv").classList.remove("active");
+    });
+    cont.appendChild(div);
+  });
+}
+
+function actualizarLabelProv() {
+  const lbl = document.getElementById("lblProv");
+  if (!provSeleccionado) { lbl.textContent = "Todos los proveedores"; return; }
+  const nombre = mapaNombresProv[provSeleccionado];
+  lbl.textContent = nombre ? (provSeleccionado + " - " + nombre) : provSeleccionado;
+}
+
+function cambiarVista(v) {
+  vista = v;
+  document.getElementById("btnVistaResumen").classList.toggle("active", v === "resumen");
+  document.getElementById("btnVistaBalanceo").classList.toggle("active", v === "balanceo");
+  document.getElementById("btnVistaLotes").classList.toggle("active", v === "lotes");
+  sortCol = ""; colResaltada = ""; filaResaltada = -1;
+  paginaActual = 1;
+  filtrar();
+}
+
+async function cargar() {
+  document.getElementById("contenido").innerHTML = "<div class='loading'><div class='spinner'></div><br>Cargando vencimientos...</div>";
+  document.getElementById("kpiRow").style.display = "none";
+  const meses = localStorage.getItem("periodo_ventas") || "6";
+  let url = "/api/vencimientos?meses=" + meses;
+  if (provSeleccionado) url += "&co_prov=" + encodeURIComponent(provSeleccionado);
+  const res  = await fetch(url);
+  const data = await res.json();
+
+  datosResumen  = data.resumen;
+  datosBalanceo = data.balanceo;
+  datosLotes    = data.detalle_lotes;
+
+  document.getElementById("kpiLotes").textContent        = data.kpi.total_lotes.toLocaleString();
+  document.getElementById("kpiSkusRiesgo").textContent    = data.kpi.skus_en_riesgo.toLocaleString();
+  document.getElementById("kpiUnidRiesgo").textContent    = data.kpi.unidades_riesgo.toLocaleString();
+  document.getElementById("kpiUnidTraslado").textContent  = data.kpi.unidades_trasladar.toLocaleString();
+  document.getElementById("kpiSinDestino").textContent    = data.kpi.sin_destino.toLocaleString();
+  document.getElementById("kpiSucAfectadas").textContent  = data.kpi.sucursales_afectadas.toLocaleString();
+  document.getElementById("kpiRow").style.display = "grid";
+
+  sortCol = ""; colResaltada = ""; filaResaltada = -1;
+  filtrar();
+}
+
+function filtrar() {
+  const q = document.getElementById("searchInput").value.toLowerCase();
+  let base = vista === "resumen" ? datosResumen : vista === "balanceo" ? datosBalanceo : datosLotes;
+  datosFiltrados = base.filter(d => (d.sku + d.descripcion).toLowerCase().includes(q));
+  paginaActual = 1;
+  renderTabla();
+}
+
+function diasCls(d) {
+  if (d <= 30) return "dias-critico";
+  if (d <= 60) return "dias-alerta";
+  return "dias-normal";
+}
+function estadoBadgeResumen(e) {
+  return e === "RIESGO" ? "<span class='est-riesgo'>Riesgo</span>" : "<span class='est-ok'>OK</span>";
+}
+function estadoBadgeBalanceo(e) {
+  return e === "TRASLADAR" ? "<span class='est-trasladar'>Trasladar</span>" : "<span class='est-sindest'>Sin destino - Evaluar promocion</span>";
+}
+
+function sortByVenc(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = true; }
+  colResaltada = col;
+  renderTabla();
+}
+function sortIconVenc(col) {
+  if (sortCol !== col) return " &#8597;";
+  return sortAsc ? " &#8593;" : " &#8595;";
+}
+function toggleFilaVenc(idx) {
+  filaResaltada = (filaResaltada === idx) ? -1 : idx;
+  renderTabla();
+}
+
+function renderTabla() {
+  const contenido = document.getElementById("contenido");
+  if (!datosFiltrados.length) {
+    contenido.innerHTML = "<div class='estado-area'><p>No hay registros con los filtros aplicados</p></div>";
+    return;
+  }
+
+  if (sortCol) {
+    datosFiltrados.sort((a, b) => {
+      let va = a[sortCol], vb = b[sortCol];
+      if (typeof va === "string") va = va.toLowerCase();
+      if (typeof vb === "string") vb = vb.toLowerCase();
+      if (va < vb) return sortAsc ? -1 : 1;
+      if (va > vb) return sortAsc ? 1 : -1;
+      return 0;
+    });
+  }
+
+  const totalPags = Math.ceil(datosFiltrados.length / POR_PAGINA);
+  if (paginaActual > totalPags) paginaActual = totalPags;
+  const inicio = (paginaActual - 1) * POR_PAGINA;
+  const pagina = datosFiltrados.slice(inicio, inicio + POR_PAGINA);
+
+  let opciones = "";
+  for (let i = 1; i <= totalPags; i++)
+    opciones += "<option value='" + i + "'" + (i===paginaActual?" selected":"") + ">Pag " + i + " de " + totalPags + "</option>";
+  const selectorTam = "<select class='pag-select' onchange='cambiarTam(this.value)' style='margin-left:8px;'>" +
+    [25,50,100].map(n => "<option value='" + n + "'" + (n===POR_PAGINA?" selected":"") + ">" + n + " / pag</option>").join("") + "</select>";
+  const paginador = "<div class='paginador'>" +
+    "<span class='pag-info'>" + datosFiltrados.length.toLocaleString() + " registros &nbsp;|&nbsp; mostrando " + (inicio+1) + " - " + Math.min(inicio+POR_PAGINA, datosFiltrados.length) + "</span>" +
+    "<div style='display:flex;gap:8px;align-items:center;'>" + selectorTam +
+    "<select class='pag-select' onchange='irPagina(this.value)'>" + opciones + "</select></div></div>";
+
+  const colCls = function(col) { return colResaltada === col ? " col-resaltada" : ""; };
+
+  let encCols, filasHtml;
+
+  if (vista === "resumen") {
+    encCols = [
+      ["sku","SKU",""], ["descripcion","Descripcion",""], ["sucursal","Suc.",""],
+      ["region","Region","center"], ["dias_venc","Dias p/Vencer","right"],
+      ["stock","Stock","right"], ["pvd","PVD","right"], ["ventas_esperadas","Ventas Esperadas","right"],
+      ["excedente","Excedente","right"], ["estado","Estado","center"]
+    ];
+    filasHtml = pagina.map((d, i) => {
+      const idxGlobal = inicio + i;
+      const filaCls = filaResaltada === idxGlobal ? " fila-resaltada" : "";
+      return "<tr class='" + filaCls.trim() + "' onclick='toggleFilaVenc(" + idxGlobal + ")' style='cursor:pointer'>" +
+      "<td class='cod" + colCls("sku") + "'>" + d.sku + "</td>" +
+      "<td class='" + colCls("descripcion").trim() + "'>" + d.descripcion + "</td>" +
+      "<td class='" + colCls("sucursal").trim() + "'><span class='suc-badge'>" + d.sucursal + "</span></td>" +
+      "<td class='center" + colCls("region") + "'>" + d.region + "</td>" +
+      "<td class='right " + diasCls(d.dias_venc) + colCls("dias_venc") + "'>" + d.dias_venc + "</td>" +
+      "<td class='right" + colCls("stock") + "'>" + d.stock.toLocaleString() + "</td>" +
+      "<td class='right" + colCls("pvd") + "'>" + d.pvd.toFixed(3) + "</td>" +
+      "<td class='right" + colCls("ventas_esperadas") + "'>" + d.ventas_esperadas.toLocaleString() + "</td>" +
+      "<td class='right" + colCls("excedente") + "'>" + (d.excedente > 0 ? d.excedente.toLocaleString() : "-") + "</td>" +
+      "<td class='center" + colCls("estado") + "'>" + estadoBadgeResumen(d.estado) + "</td>" +
+      "</tr>";
+    }).join("");
+  } else if (vista === "balanceo") {
+    encCols = [
+      ["sku","SKU",""], ["descripcion","Descripcion",""], ["suc_origen","Origen",""],
+      ["region","Region","center"], ["dias_venc","Dias p/Vencer","right"],
+      ["excedente","Excedente","right"], ["suc_destino","Destino","center"],
+      ["pvd_destino","PVD Destino","right"], ["a_trasladar","A Trasladar","right"], ["estado","Estado","center"]
+    ];
+    filasHtml = pagina.map((d, i) => {
+      const idxGlobal = inicio + i;
+      const filaCls = filaResaltada === idxGlobal ? " fila-resaltada" : "";
+      return "<tr class='" + filaCls.trim() + "' onclick='toggleFilaVenc(" + idxGlobal + ")' style='cursor:pointer'>" +
+      "<td class='cod" + colCls("sku") + "'>" + d.sku + "</td>" +
+      "<td class='" + colCls("descripcion").trim() + "'>" + d.descripcion + "</td>" +
+      "<td class='" + colCls("suc_origen").trim() + "'><span class='suc-orig'>" + d.suc_origen + "</span></td>" +
+      "<td class='center" + colCls("region") + "'>" + d.region + "</td>" +
+      "<td class='right " + diasCls(d.dias_venc) + colCls("dias_venc") + "'>" + d.dias_venc + "</td>" +
+      "<td class='right" + colCls("excedente") + "'>" + d.excedente.toLocaleString() + "</td>" +
+      "<td class='center" + colCls("suc_destino") + "'>" + (d.suc_destino !== "Sin destino" ? "<span class='suc-badge'>" + d.suc_destino + "</span>" : "<span style='color:#bbb'>-</span>") + "</td>" +
+      "<td class='right" + colCls("pvd_destino") + "'>" + (d.pvd_destino > 0 ? d.pvd_destino.toFixed(3) : "-") + "</td>" +
+      "<td class='right" + colCls("a_trasladar") + "'>" + d.a_trasladar.toLocaleString() + "</td>" +
+      "<td class='center" + colCls("estado") + "'>" + estadoBadgeBalanceo(d.estado) + "</td>" +
+      "</tr>";
+    }).join("");
+  } else {
+    encCols = [
+      ["sku","SKU",""], ["descripcion","Descripcion",""], ["sucursal","Suc.",""],
+      ["region","Region","center"], ["lote","Lote",""],
+      ["fecha_exp","Fecha Venc.","center"], ["dias_venc","Dias p/Vencer","right"], ["stock","Stock","right"]
+    ];
+    filasHtml = pagina.map((d, i) => {
+      const idxGlobal = inicio + i;
+      const filaCls = filaResaltada === idxGlobal ? " fila-resaltada" : "";
+      return "<tr class='" + filaCls.trim() + "' onclick='toggleFilaVenc(" + idxGlobal + ")' style='cursor:pointer'>" +
+      "<td class='cod" + colCls("sku") + "'>" + d.sku + "</td>" +
+      "<td class='" + colCls("descripcion").trim() + "'>" + d.descripcion + "</td>" +
+      "<td class='" + colCls("sucursal").trim() + "'><span class='suc-badge'>" + d.sucursal + "</span></td>" +
+      "<td class='center" + colCls("region") + "'>" + d.region + "</td>" +
+      "<td class='" + colCls("lote").trim() + "'>" + d.lote + "</td>" +
+      "<td class='center" + colCls("fecha_exp") + "'>" + d.fecha_exp + "</td>" +
+      "<td class='right " + diasCls(d.dias_venc) + colCls("dias_venc") + "'>" + d.dias_venc + "</td>" +
+      "<td class='right" + colCls("stock") + "'>" + d.stock.toLocaleString() + "</td>" +
+      "</tr>";
+    }).join("");
+  }
+
+  let thHtml = "";
+  encCols.forEach(function(c) {
+    const col = c[0], label = c[1], extra = c[2];
+    const clase = (extra + colCls(col)).trim();
+    const claseAttr = clase ? " class='" + clase + "'" : "";
+    thHtml += "<th" + claseAttr + " onclick='sortByVenc(&quot;" + col + "&quot;)'>" + label + sortIconVenc(col) + "</th>";
+  });
+
+  contenido.innerHTML = paginador +
+    "<div class='tabla-scroll'><table><thead><tr>" + thHtml + "</tr></thead><tbody>" + filasHtml + "</tbody></table></div>" + paginador;
+}
+
+function irPagina(p) {
+  paginaActual = parseInt(p);
+  renderTabla();
+  document.getElementById("contenido").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function cambiarTam(n) { POR_PAGINA = parseInt(n); paginaActual = 1; renderTabla(); }
+
+window.onload = async function() {
+  await poblarProv();
+  cargar();
+};
+</script>
+{% endblock %}

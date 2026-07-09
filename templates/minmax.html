@@ -47,15 +47,29 @@
 .dd-btn-ancho { width: 100%; min-width: 100%; }
 .dd-list-ancho { width: 100%; min-width: 100%; max-height: 360px; }
 
-.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
-.kpi { background: white; border-radius: 8px; padding: 12px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid #2E75B6; }
-.kpi.critico  { border-left-color: #C00000; }
-.kpi.optimo   { border-left-color: #375623; }
-.kpi.exceso   { border-left-color: #C55A11; }
-.kpi.sinstock { border-left-color: #444; }
-.kpi.sinventa { border-left-color: #999; }
-.kpi-label { font-size: 0.68rem; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
-.kpi-valor { font-size: 1.3rem; font-weight: 700; color: #1F4E79; margin-top: 4px; }
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.kpi {
+  border-radius: 14px; padding: 16px 18px;
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.kpi:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(0,0,0,0.16); }
+.kpi-icono {
+  width: 38px; height: 38px; flex-shrink: 0;
+  background: rgba(255,255,255,0.25); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+}
+.kpi-texto { min-width: 0; }
+.kpi.critico  { background: linear-gradient(135deg, #6FA8F9 0%, #3A6FD8 100%); }
+.kpi.optimo   { background: linear-gradient(135deg, #5B96F5 0%, #2E5FD9 100%); }
+.kpi.exceso   { background: linear-gradient(135deg, #4F8EF7 0%, #2E5FD9 100%); }
+.kpi.sinstock { background: linear-gradient(135deg, #4380EE 0%, #244EBF 100%); }
+.kpi.sinventa { background: linear-gradient(135deg, #3B72E0 0%, #1F44AA 100%); }
+.kpi.total    { background: linear-gradient(135deg, #4F8EF7 0%, #2E5FD9 100%); }
+.kpi-label { font-size: 0.68rem; color: rgba(255,255,255,0.9); font-weight: 600; margin-top: 2px; }
+.kpi-valor { font-size: 1.4rem; font-weight: 800; color: #fff; line-height: 1.1; }
 
 table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); font-size: 0.82rem; }
 thead th { background: #1F4E79; color: white; padding: 9px 10px; text-align: left; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; position: sticky; top: 0; }
@@ -171,12 +185,30 @@ tr.fila-resaltada:hover td { background: #DCE7FB !important; }
 
 <!-- KPIs -->
 <div class="kpi-row" id="kpiRow" style="display:none;">
-  <div class="kpi critico"><div class="kpi-label">🔴 Criticos</div><div class="kpi-valor" id="kpiCritico">-</div></div>
-  <div class="kpi optimo"><div class="kpi-label">🟢 Optimos</div><div class="kpi-valor" id="kpiOptimo">-</div></div>
-  <div class="kpi exceso"><div class="kpi-label">🟡 Exceso</div><div class="kpi-valor" id="kpiExceso">-</div></div>
-  <div class="kpi sinstock"><div class="kpi-label">⚫ Sin Stock</div><div class="kpi-valor" id="kpiSinStock">-</div></div>
-  <div class="kpi sinventa"><div class="kpi-label">○ Sin Venta</div><div class="kpi-valor" id="kpiSinVenta">-</div></div>
-  <div class="kpi"><div class="kpi-label">Compra Sugerida (und)</div><div class="kpi-valor" id="kpiSugerida">-</div></div>
+  <div class="kpi critico">
+    <div class="kpi-icono">&#128308;</div>
+    <div class="kpi-texto"><div class="kpi-valor" id="kpiCritico">-</div><div class="kpi-label">Criticos</div></div>
+  </div>
+  <div class="kpi optimo">
+    <div class="kpi-icono">&#128994;</div>
+    <div class="kpi-texto"><div class="kpi-valor" id="kpiOptimo">-</div><div class="kpi-label">Optimos</div></div>
+  </div>
+  <div class="kpi exceso">
+    <div class="kpi-icono">&#128993;</div>
+    <div class="kpi-texto"><div class="kpi-valor" id="kpiExceso">-</div><div class="kpi-label">Exceso</div></div>
+  </div>
+  <div class="kpi sinstock">
+    <div class="kpi-icono">&#9899;</div>
+    <div class="kpi-texto"><div class="kpi-valor" id="kpiSinStock">-</div><div class="kpi-label">Sin Stock</div></div>
+  </div>
+  <div class="kpi sinventa">
+    <div class="kpi-icono">&#9898;</div>
+    <div class="kpi-texto"><div class="kpi-valor" id="kpiSinVenta">-</div><div class="kpi-label">Sin Venta</div></div>
+  </div>
+  <div class="kpi total">
+    <div class="kpi-icono">&#128722;</div>
+    <div class="kpi-texto"><div class="kpi-valor" id="kpiSugerida">-</div><div class="kpi-label">Compra Sugerida (und)</div></div>
+  </div>
 </div>
 
 <div id="contenido"><div class="estado-area"><p>Configure los parametros y presione Calcular Min-Max</p></div></div>

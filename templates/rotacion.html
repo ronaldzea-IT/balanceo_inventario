@@ -69,14 +69,28 @@
 .dd-item-single:hover { background: #f0f7ff; }
 .dd-item-single.selected { background: #EBF3FB; color: #1F4E79; font-weight: 600; }
 
-.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
-.kpi { background: white; border-radius: 8px; padding: 14px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid #2E75B6; }
-.kpi.verde   { border-left-color: #375623; }
-.kpi.naranja { border-left-color: #C55A11; }
-.kpi.rojo    { border-left-color: #C00000; }
-.kpi.gris    { border-left-color: #999; }
-.kpi-label { font-size: 0.68rem; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
-.kpi-valor { font-size: 1.3rem; font-weight: 700; color: #1F4E79; margin-top: 4px; }
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.kpi {
+  border-radius: 14px; padding: 16px 18px;
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.kpi:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(0,0,0,0.16); }
+.kpi-icono {
+  width: 38px; height: 38px; flex-shrink: 0;
+  background: rgba(255,255,255,0.25); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+}
+.kpi-texto { min-width: 0; }
+.kpi-label { font-size: 0.68rem; color: rgba(255,255,255,0.9); font-weight: 600; margin-top: 2px; }
+.kpi-valor { font-size: 1.4rem; font-weight: 800; color: #fff; line-height: 1.1; }
+.kpi.azul    { background: linear-gradient(135deg, #6FA8F9 0%, #3A6FD8 100%); }
+.kpi.verde   { background: linear-gradient(135deg, #5B96F5 0%, #2E5FD9 100%); }
+.kpi.naranja { background: linear-gradient(135deg, #4F8EF7 0%, #2E5FD9 100%); }
+.kpi.rojo    { background: linear-gradient(135deg, #4380EE 0%, #244EBF 100%); }
+.kpi.gris    { background: linear-gradient(135deg, #3B72E0 0%, #1F44AA 100%); }
 
 .tabla-scroll { overflow-x: auto; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
 table { width: 100%; min-width: 900px; border-collapse: collapse; background: white; font-size: 0.82rem; }
@@ -400,7 +414,13 @@ function actualizarKPIs() {
 }
 
 function kpi(label, valor, clase) {
-  return "<div class='kpi " + (clase||"") + "'><div class='kpi-label'>" + label + "</div><div class='kpi-valor'>" + valor + "</div></div>";
+  const iconos = { verde: "&#128994;", naranja: "&#128993;", rojo: "&#128308;", gris: "&#9898;", azul: "&#128202;" };
+  const cls = clase || "azul";
+  const ico = iconos[cls] || "&#128202;";
+  return "<div class='kpi " + cls + "'>" +
+    "<div class='kpi-icono'>" + ico + "</div>" +
+    "<div class='kpi-texto'><div class='kpi-valor'>" + valor + "</div><div class='kpi-label'>" + label + "</div></div>" +
+    "</div>";
 }
 
 function badgeDiag(d) {

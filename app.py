@@ -1404,5 +1404,205 @@ def api_meses_disponibles():
     return jsonify(meses)
 
 
+
+@app.route("/vencimientos")
+def vencimientos():
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    return render_template("vencimientos.html", now=now)
+
+@app.route("/api/vencimientos")
+def api_vencimientos():
+    import json as _json, math
+    from collections import defaultdict
+    from datetime import datetime as _dt, timedelta as _td
+
+    co_prov = request.args.get("co_prov", "").strip()
+    meses   = int(request.args.get("meses", "6"))
+
+    conn = get_connection()
+    cur  = conn.cursor()
+
+    filtro_prov = ""
+    params = []
+    if co_prov:
+        filtro_prov = """
+            AND (
+                SELECT STRING_AGG(CAST(P.co_prov AS VARCHAR(10)), \',\')
+                FROM saProveedor P
+                INNER JOIN saArtProveedorReng Pr ON P.co_prov = Pr.co_prov AND Pr.co_art = A.co_art
+                WHERE P.inactivo = 0
+            ) BETWEEN ? AND ?
+        """
+        params.extend([co_prov, co_prov])
+
+    cur.execute("""
+        SELECT
+            RTRIM(LEFT(le.co_alma, 2))  AS sucursal,
+            RTRIM(le.co_art)            AS sku,
+            RTRIM(a.art_des)            AS descripcion,
+            RTRIM(le.numero_lote)       AS lote,
+            le.fecha_expiracion,
+            le.stock_actual
+        FROM saLoteEntrada le
+        LEFT JOIN saArticulo a ON RTRIM(le.co_art) = RTRIM(a.co_art)
+        WHERE le.stock_actual > 0
+          AND le.fecha_expiracion IS NOT NULL
+          AND le.fecha_expiracion BETWEEN GETDATE() AND DATEADD(day, 90, GETDATE())
+    """ + filtro_prov + """
+        ORDER BY le.fecha_expiracion ASC
+    """, params)
+
+    lotes_rows = cur.fetchall()
+
+    # Region por sucursal
+    cur.execute("SELECT RTRIM(co_sucur), ISNULL(RTRIM(campo2), \'\') FROM saSucursal")
+    region_por_suc = {r[0]: r[1] for r in cur.fetchall()}
+    cur.close(); conn.close()
+
+    hoy = _dt.now()
+
+    # ---- Detalle por lote ----
+    detalle_lotes = []
+    prov_por_sku = {}
+    for suc, sku, desc, lote, fec_exp, stock in lotes_rows:
+        desc_clean = (desc or "").split("*")[0].strip()
+        dias = (fec_exp.date() - hoy.date()).days
+        detalle_lotes.append({
+            "sucursal": suc, "sku": sku, "descripcion": desc_clean, "lote": lote,
+            "fecha_exp": fec_exp.strftime("%Y-%m-%d"), "dias_venc": dias,
+            "stock": float(stock), "region": region_por_suc.get(suc, ""),
+        })
+
+    # ---- Agregar por SKU + Sucursal (usando la fecha de vencimiento mas proxima) ----
+    agregado = defaultdict(lambda: {"descripcion": "", "region": "", "stock": 0.0, "dias_venc": 9999})
+    for d in detalle_lotes:
+        k = (d["sku"], d["sucursal"])
+        agregado[k]["descripcion"] = d["descripcion"]
+        agregado[k]["region"]      = d["region"]
+        agregado[k]["stock"]      += d["stock"]
+        agregado[k]["dias_venc"]   = min(agregado[k]["dias_venc"], d["dias_venc"])
+
+    # ---- PVD desde cache de ventas ----
+    cache = os.path.join(os.path.dirname(__file__), "ventas_cache.json")
+    ventas_data = []
+    if os.path.exists(cache):
+        with open(cache, encoding="utf-8") as f:
+            ventas_data = _json.load(f)["registros"]
+        if co_prov:
+            ventas_data = [v for v in ventas_data if v.get("co_prov") == co_prov]
+        if meses > 0:
+            todos_meses = sorted(set(v["anio_mes"] for v in ventas_data))
+            corte = todos_meses[-meses] if len(todos_meses) >= meses else (todos_meses[0] if todos_meses else "2000-01")
+            ventas_data = [v for v in ventas_data if v["anio_mes"] >= corte]
+
+    meses_disponibles = sorted(set(v["anio_mes"] for v in ventas_data))
+    n_meses = len(meses_disponibles) or 1
+
+    ventas_por_sku_suc = defaultdict(float)
+    prov_por_sku = {}
+    for v in ventas_data:
+        ventas_por_sku_suc[(v["sku"], v["sucursal"])] += v["unidades_vendidas"]
+        prov_por_sku[v["sku"]] = v.get("co_prov", "")
+
+    def pvd_de(sku, suc):
+        total = ventas_por_sku_suc.get((sku, suc), 0)
+        prom  = total / n_meses
+        return prom / 30
+
+    # ---- Resumen por SKU-Sucursal con excedente en riesgo ----
+    resumen = []
+    for (sku, suc), data in agregado.items():
+        pvd = pvd_de(sku, suc)
+        dias_venc = data["dias_venc"]
+        ventas_esperadas = pvd * dias_venc
+        excedente = max(0, data["stock"] - ventas_esperadas)
+        estado = "RIESGO" if excedente > 0 else "OK"
+        resumen.append({
+            "sku": sku, "descripcion": data["descripcion"], "sucursal": suc,
+            "region": data["region"], "co_prov": prov_por_sku.get(sku, ""),
+            "dias_venc": dias_venc, "stock": round(data["stock"], 0),
+            "pvd": round(pvd, 4), "ventas_esperadas": round(ventas_esperadas, 1),
+            "excedente": round(excedente, 0), "estado": estado,
+        })
+
+    # ---- Balanceo: origenes con excedente -> destinos misma region con demanda ----
+    balanceo = []
+    origenes = [r for r in resumen if r["excedente"] > 0]
+
+    # indexar pvd por sku para candidatos destino
+    pvd_por_sku_region = defaultdict(list)  # sku -> lista de (suc, region, pvd)
+    todas_sucursales = set(region_por_suc.keys())
+    for sku in set(r["sku"] for r in origenes):
+        for suc in todas_sucursales:
+            p = pvd_de(sku, suc)
+            if p > 0:
+                pvd_por_sku_region[sku].append({
+                    "sucursal": suc, "region": region_por_suc.get(suc, ""), "pvd": p
+                })
+
+    excedente_por_sku_suc = {(r["sku"], r["sucursal"]): r for r in resumen}
+
+    for o in origenes:
+        sku = o["sku"]; suc_origen = o["sucursal"]; region_o = o["region"]
+        restante = o["excedente"]
+        dias_venc = o["dias_venc"]
+
+        candidatos = [c for c in pvd_por_sku_region.get(sku, [])
+                      if c["sucursal"] != suc_origen and c["region"] == region_o]
+        candidatos.sort(key=lambda c: c["pvd"], reverse=True)
+
+        for c in candidatos:
+            if restante <= 0:
+                break
+            key_dest = (sku, c["sucursal"])
+            excedente_destino = excedente_por_sku_suc.get(key_dest, {}).get("excedente", 0)
+            if excedente_destino > 0:
+                continue  # el destino tambien tiene riesgo, no sirve
+            capacidad = c["pvd"] * dias_venc
+            a_trasladar = round(min(restante, capacidad), 0)
+            if a_trasladar <= 0:
+                continue
+            balanceo.append({
+                "sku": sku, "descripcion": o["descripcion"],
+                "co_prov": o["co_prov"],
+                "suc_origen": suc_origen, "region": region_o,
+                "dias_venc": dias_venc, "stock_origen": o["stock"],
+                "excedente": o["excedente"],
+                "suc_destino": c["sucursal"], "pvd_destino": round(c["pvd"], 3),
+                "a_trasladar": a_trasladar,
+                "estado": "TRASLADAR",
+            })
+            restante -= a_trasladar
+
+        if restante > 0:
+            balanceo.append({
+                "sku": sku, "descripcion": o["descripcion"],
+                "co_prov": o["co_prov"],
+                "suc_origen": suc_origen, "region": region_o,
+                "dias_venc": dias_venc, "stock_origen": o["stock"],
+                "excedente": o["excedente"],
+                "suc_destino": "Sin destino",
+                "pvd_destino": 0,
+                "a_trasladar": round(restante, 0),
+                "estado": "SIN DESTINO - EVALUAR PROMOCION",
+            })
+
+    resumen_kpi = {
+        "total_lotes":       len(detalle_lotes),
+        "skus_en_riesgo":    len(set((r["sku"], r["sucursal"]) for r in resumen if r["excedente"] > 0)),
+        "unidades_riesgo":   round(sum(r["excedente"] for r in resumen), 0),
+        "unidades_trasladar": round(sum(b["a_trasladar"] for b in balanceo if b["estado"] == "TRASLADAR"), 0),
+        "sin_destino":       round(sum(b["a_trasladar"] for b in balanceo if b["estado"] != "TRASLADAR"), 0),
+        "sucursales_afectadas": len(set(r["sucursal"] for r in resumen if r["excedente"] > 0)),
+    }
+
+    return jsonify({
+        "detalle_lotes": detalle_lotes,
+        "resumen": resumen,
+        "balanceo": balanceo,
+        "kpi": resumen_kpi,
+    })
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False, threaded=True)

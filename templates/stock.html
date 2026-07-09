@@ -53,13 +53,28 @@
 .dd-btn-ancho { width: 100%; min-width: 100%; }
 .dd-list-ancho { width: 100%; min-width: 100%; max-height: 360px; }
 
-.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
-.kpi { background: white; border-radius: 8px; padding: 14px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid #2E75B6; }
-.kpi.verde   { border-left-color: #375623; }
-.kpi.naranja { border-left-color: #C55A11; }
-.kpi.rojo    { border-left-color: #C00000; }
-.kpi-label { font-size: 0.7rem; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
-.kpi-valor { font-size: 1.4rem; font-weight: 700; color: #1F4E79; margin-top: 4px; }
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.kpi {
+  border-radius: 14px; padding: 16px 18px;
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.kpi:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(0,0,0,0.16); }
+.kpi-icono {
+  width: 38px; height: 38px; flex-shrink: 0;
+  background: rgba(255,255,255,0.25); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+}
+.kpi-texto { min-width: 0; }
+.kpi-label { font-size: 0.68rem; color: rgba(255,255,255,0.9); font-weight: 600; margin-top: 2px; }
+.kpi-valor { font-size: 1.4rem; font-weight: 800; color: #fff; line-height: 1.1; }
+.kpi.azul    { background: linear-gradient(135deg, #6FA8F9 0%, #3A6FD8 100%); }
+.kpi.verde   { background: linear-gradient(135deg, #5B96F5 0%, #2E5FD9 100%); }
+.kpi.naranja { background: linear-gradient(135deg, #4F8EF7 0%, #2E5FD9 100%); }
+.kpi.rojo    { background: linear-gradient(135deg, #4380EE 0%, #244EBF 100%); }
+.kpi.morado  { background: linear-gradient(135deg, #3B72E0 0%, #1F44AA 100%); }
 
 table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); font-size: 0.83rem; }
 thead th { background: #1F4E79; color: white; padding: 10px 12px; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; position: sticky; top: 0; }
@@ -127,11 +142,11 @@ tr.fila-resaltada:hover td { background: #DCE7FB !important; }
 
 <!-- KPIs -->
 <div class="kpi-row" id="kpiRow" style="display:none;">
-  <div class="kpi"><div class="kpi-label">SKUs</div><div class="kpi-valor" id="kpiSkus">-</div></div>
-  <div class="kpi verde"><div class="kpi-label">Existencia Total</div><div class="kpi-valor" id="kpiExist">-</div></div>
-  <div class="kpi naranja"><div class="kpi-label">En Transito</div><div class="kpi-valor" id="kpiTrans">-</div></div>
-  <div class="kpi"><div class="kpi-label">Stock Disponible</div><div class="kpi-valor" id="kpiDisp">-</div></div>
-  <div class="kpi rojo"><div class="kpi-label">Costo Inventario</div><div class="kpi-valor" id="kpiCosto">-</div></div>
+  <div class="kpi azul"><div class="kpi-icono">&#127974;</div><div class="kpi-texto"><div class="kpi-valor" id="kpiSkus">-</div><div class="kpi-label">SKUs</div></div></div>
+  <div class="kpi verde"><div class="kpi-icono">&#128230;</div><div class="kpi-texto"><div class="kpi-valor" id="kpiExist">-</div><div class="kpi-label">Existencia Total</div></div></div>
+  <div class="kpi naranja"><div class="kpi-icono">&#128666;</div><div class="kpi-texto"><div class="kpi-valor" id="kpiTrans">-</div><div class="kpi-label">En Transito</div></div></div>
+  <div class="kpi morado"><div class="kpi-icono">&#9989;</div><div class="kpi-texto"><div class="kpi-valor" id="kpiDisp">-</div><div class="kpi-label">Stock Disponible</div></div></div>
+  <div class="kpi rojo"><div class="kpi-icono">&#128176;</div><div class="kpi-texto"><div class="kpi-valor" id="kpiCosto">-</div><div class="kpi-label">Costo Inventario</div></div></div>
 </div>
 
 <div id="contenido"><div class="loading"><div class="spinner"></div><br>Cargando stock...</div></div>

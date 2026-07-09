@@ -502,14 +502,27 @@ async function cambiarEstatus(sku, activo) {
 }
 .filtro-region:focus { border-color: #2E75B6; }
 
-.resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
-.res-card { background: white; border-radius: 8px; padding: 14px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid #2E75B6; }
-.res-card.andino  { border-left-color: #375623; }
-.res-card.llanero { border-left-color: #C55A11; }
-.res-card.centro  { border-left-color: #7030A0; }
-.res-card.oriente { border-left-color: #C00000; }
-.res-label { font-size: 0.7rem; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
-.res-valor { font-size: 1.6rem; font-weight: 700; color: #1F4E79; margin-top: 4px; }
+.resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.res-card {
+  border-radius: 14px; padding: 16px 18px;
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transition: transform 0.15s, box-shadow 0.15s;
+  background: linear-gradient(135deg, #4F8EF7 0%, #2E5FD9 100%);
+}
+.res-card:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(0,0,0,0.16); }
+.res-icono {
+  width: 38px; height: 38px; flex-shrink: 0;
+  background: rgba(255,255,255,0.25); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+}
+.res-card.andino  { background: linear-gradient(135deg, #6FA8F9 0%, #3A6FD8 100%); }
+.res-card.llanero { background: linear-gradient(135deg, #5B96F5 0%, #2E5FD9 100%); }
+.res-card.centro  { background: linear-gradient(135deg, #4F8EF7 0%, #2E5FD9 100%); }
+.res-card.oriente { background: linear-gradient(135deg, #4380EE 0%, #244EBF 100%); }
+.res-label { font-size: 0.68rem; color: rgba(255,255,255,0.9); font-weight: 600; margin-top: 2px; }
+.res-valor { font-size: 1.4rem; font-weight: 800; color: #fff; line-height: 1.1; }
 
 table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); font-size: 0.88rem; }
 thead th { background: #1F4E79; color: white; padding: 12px 16px; text-align: left; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; }
@@ -600,10 +613,11 @@ function renderResumen() {
   const regiones = ["ANDINO","LLANERO","CENTRO-OCCIDENTE","ORIENTE"];
   const clases   = ["andino","llanero","centro","oriente"];
   const nombres  = ["Andino","Llanero","Centro-Occidente","Oriente"];
-  let html = "<div class='res-card'><div class='res-label'>Total Sucursales</div><div class='res-valor'>" + sucursales.length + "</div></div>";
+  const iconos   = ["&#127956;","&#127792;","&#127961;","&#127754;"];
+  let html = "<div class='res-card'><div class='res-icono'>&#127970;</div><div class='res-texto'><div class='res-valor'>" + sucursales.length + "</div><div class='res-label'>Total Sucursales</div></div></div>";
   regiones.forEach((r, i) => {
     const count = sucursales.filter(s => (s.region || "").toUpperCase() === r).length;
-    html += "<div class='res-card " + clases[i] + "'><div class='res-label'>" + nombres[i] + "</div><div class='res-valor'>" + count + "</div></div>";
+    html += "<div class='res-card " + clases[i] + "'><div class='res-icono'>" + iconos[i] + "</div><div class='res-texto'><div class='res-valor'>" + count + "</div><div class='res-label'>" + nombres[i] + "</div></div></div>";
   });
   document.getElementById("resumen").innerHTML = html;
 }

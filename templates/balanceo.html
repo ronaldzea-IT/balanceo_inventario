@@ -32,29 +32,31 @@
 .btn-calcular { background: #375623; font-size: 0.9rem; padding: 12px 28px; }
 .btn-calcular:hover { background: #1E3A0F; }
 
-.resumen-panel { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px; display: none; }
-.resumen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.resumen-panel { background: #f4f6fb; border-radius: 14px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 16px; display: none; }
+.resumen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
 .res-card {
-  background: linear-gradient(135deg, #2E75B6 0%, #1F4E79 100%);
   border-radius: 14px; padding: 16px 18px;
-  display: flex; align-items: center; gap: 14px;
-  box-shadow: 0 4px 14px rgba(31,78,121,0.25);
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   transition: transform 0.15s, box-shadow 0.15s;
 }
-.res-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(31,78,121,0.32); }
-.res-icono.verde    { background: rgba(76,140,74,0.35); }
-.res-icono.amarillo { background: rgba(224,138,60,0.35); }
-.res-icono.rojo     { background: rgba(214,69,69,0.4); }
+.res-card:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(0,0,0,0.16); }
 .res-icono {
-  width: 44px; height: 44px; flex-shrink: 0;
-  background: rgba(255,255,255,0.22); border-radius: 50%;
+  width: 38px; height: 38px; flex-shrink: 0;
+  background: rgba(255,255,255,0.25); border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.25rem;
+  font-size: 1.1rem;
 }
 .res-texto { min-width: 0; }
-.res-label { font-size: 0.68rem; color: rgba(255,255,255,0.85); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
-.res-valor { font-size: 1.35rem; font-weight: 800; color: #fff; margin-top: 2px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.res-sub   { font-size: 0.72rem; color: rgba(255,255,255,0.8); margin-top: 2px; }
+.res-valor { font-size: 1.4rem; font-weight: 800; color: #fff; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.res-label { font-size: 0.68rem; color: rgba(255,255,255,0.9); font-weight: 600; margin-top: 2px; }
+.res-sub   { font-size: 0.66rem; color: rgba(255,255,255,0.82); margin-top: 1px; }
+.res-card.c-azul     { background: linear-gradient(135deg, #6FA8F9 0%, #3A6FD8 100%); }
+.res-card.c-verde    { background: linear-gradient(135deg, #5B96F5 0%, #2E5FD9 100%); }
+.res-card.c-rosa     { background: linear-gradient(135deg, #4F8EF7 0%, #2E5FD9 100%); }
+.res-card.c-amarillo { background: linear-gradient(135deg, #4380EE 0%, #244EBF 100%); }
+.res-card.c-morado   { background: linear-gradient(135deg, #3B72E0 0%, #1F44AA 100%); }
+.res-card.c-rojo     { background: linear-gradient(135deg, #325FC9 0%, #1A3990 100%); }
 
 .toolbar { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
 .toolbar input[type=text] { flex: 2; min-width: 200px; padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; outline: none; }
@@ -125,39 +127,40 @@ tr.fila-resaltada:hover td { background: #DCE7FB !important; }
 <div class="resumen-panel" id="resumenPanel">
   <div class="params-titulo">Resumen Ejecutivo</div>
   <div class="resumen-grid">
-    <div class="res-card">
+    <div class="res-card c-azul">
       <div class="res-icono">&#128230;</div>
-      <div class="res-texto"><div class="res-label">SKU-Suc con Deficit</div><div class="res-valor" id="rTotalDef">-</div></div>
+      <div class="res-texto"><div class="res-valor" id="rTotalDef">-</div><div class="res-label">SKU-Suc con Deficit</div></div>
     </div>
-    <div class="res-card">
+    <div class="res-card c-verde">
       <div class="res-icono">&#128666;</div>
-      <div class="res-texto"><div class="res-label">Unidades a Trasladar</div><div class="res-valor" id="rTrasladar">-</div></div>
+      <div class="res-texto"><div class="res-valor" id="rTrasladar">-</div><div class="res-label">Unidades a Trasladar</div></div>
     </div>
-    <div class="res-card">
+    <div class="res-card c-rosa">
       <div class="res-icono">&#128722;</div>
-      <div class="res-texto"><div class="res-label">Unidades a Comprar</div><div class="res-valor" id="rComprar">-</div></div>
+      <div class="res-texto"><div class="res-valor" id="rComprar">-</div><div class="res-label">Unidades a Comprar</div></div>
     </div>
-    <div class="res-card">
+    <div class="res-card c-amarillo">
       <div class="res-icono">&#128200;</div>
-      <div class="res-texto"><div class="res-label">Necesidad Total</div><div class="res-valor" id="rNecesidad">-</div></div>
+      <div class="res-texto"><div class="res-valor" id="rNecesidad">-</div><div class="res-label">Necesidad Total</div></div>
     </div>
-    <div class="res-card">
+    <div class="res-card c-morado">
       <div class="res-icono">&#127919;</div>
-      <div class="res-texto"><div class="res-label">% Cubierto Balanceo</div><div class="res-valor" id="rPctBal">-</div><div class="res-sub" id="rPctComp"></div></div>
+      <div class="res-texto"><div class="res-valor" id="rPctBal">-</div><div class="res-label">% Cubierto Balanceo</div><div class="res-sub" id="rPctComp"></div></div>
     </div>
   </div>
-  <div class="resumen-grid">
-    <div class="res-card">
-      <div class="res-icono verde">&#128994;</div>
-      <div class="res-texto"><div class="res-label">Misma Region</div><div class="res-valor" id="rVerde">-</div></div>
+
+  <div class="resumen-grid" style="margin-top:14px;">
+    <div class="res-card c-verde">
+      <div class="res-icono">&#128994;</div>
+      <div class="res-texto"><div class="res-valor" id="rVerde">-</div><div class="res-label">Misma Region</div></div>
     </div>
-    <div class="res-card">
-      <div class="res-icono amarillo">&#128993;</div>
-      <div class="res-texto"><div class="res-label">Region Cercana</div><div class="res-valor" id="rAmarillo">-</div></div>
+    <div class="res-card c-amarillo">
+      <div class="res-icono">&#128993;</div>
+      <div class="res-texto"><div class="res-valor" id="rAmarillo">-</div><div class="res-label">Region Cercana</div></div>
     </div>
-    <div class="res-card">
-      <div class="res-icono rojo">&#128308;</div>
-      <div class="res-texto"><div class="res-label">Region Lejana</div><div class="res-valor" id="rRojo">-</div></div>
+    <div class="res-card c-rojo">
+      <div class="res-icono">&#128308;</div>
+      <div class="res-texto"><div class="res-valor" id="rRojo">-</div><div class="res-label">Region Lejana</div></div>
     </div>
   </div>
 </div>
