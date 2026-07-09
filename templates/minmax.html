@@ -1,0 +1,489 @@
+{% extends "base.html" %}
+{% block heading %}Min-Max{% endblock %}
+
+{% block content %}
+<style>
+.params-panel {
+  background: white; border-radius: 10px; padding: 16px 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px;
+}
+.params-titulo { font-size: 0.75rem; font-weight: 700; color: #1F4E79; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+.params-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.param-item { display: flex; flex-direction: column; gap: 4px; }
+.param-label { font-size: 0.72rem; color: #888; }
+.param-input {
+  padding: 7px 10px; border: 2px solid #e0e0e0; border-radius: 6px;
+  font-size: 0.85rem; outline: none; width: 100%; box-sizing: border-box;
+}
+.param-input:focus { border-color: #2E75B6; }
+.params-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-top: 12px; }
+
+.toolbar { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+.toolbar input[type=text] { flex: 2; min-width: 200px; padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; outline: none; }
+.toolbar input[type=text]:focus { border-color: #2E75B6; }
+.btn-accion { padding: 10px 16px; background: #2E75B6; color: white; border: none; border-radius: 8px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
+.btn-accion:hover { background: #1F4E79; }
+.btn-calcular { background: #375623; font-size: 0.9rem; padding: 10px 24px; }
+.btn-calcular:hover { background: #1E3A0F; }
+
+.dd-wrap { position: relative; }
+.dd-btn { padding: 10px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.85rem; background: white; cursor: pointer; white-space: nowrap; min-width: 180px; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.dd-btn:hover { border-color: #2E75B6; }
+.dd-btn.active { border-color: #2E75B6; }
+.dd-btn .arrow { font-size: 0.7rem; color: #999; }
+.dd-list { display: none; position: absolute; top: calc(100% + 4px); left: 0; background: white; border: 2px solid #2E75B6; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 999; min-width: 240px; max-height: 280px; overflow-y: auto; }
+.dd-list.open { display: block; }
+.dd-search { padding: 8px 10px; border-bottom: 1px solid #eee; }
+.dd-search input { width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.82rem; outline: none; box-sizing: border-box; }
+.dd-actions { display: flex; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #eee; }
+.dd-actions span { font-size: 0.75rem; color: #2E75B6; cursor: pointer; text-decoration: underline; }
+.dd-item { display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; font-size: 0.83rem; }
+.dd-item:hover { background: #f0f7ff; }
+.dd-item input[type=checkbox] { cursor: pointer; accent-color: #2E75B6; flex-shrink: 0; }
+.dd-item-single { cursor: pointer; }
+.dd-item-single.selected { background: #EBF3FB; color: #1F4E79; font-weight: 600; }
+.toolbar-prov { margin-bottom: 16px; }
+.dd-wrap-ancho { width: 100%; }
+.dd-btn-ancho { width: 100%; min-width: 100%; }
+.dd-list-ancho { width: 100%; min-width: 100%; max-height: 360px; }
+
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.kpi { background: white; border-radius: 8px; padding: 12px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid #2E75B6; }
+.kpi.critico  { border-left-color: #C00000; }
+.kpi.optimo   { border-left-color: #375623; }
+.kpi.exceso   { border-left-color: #C55A11; }
+.kpi.sinstock { border-left-color: #444; }
+.kpi.sinventa { border-left-color: #999; }
+.kpi-label { font-size: 0.68rem; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
+.kpi-valor { font-size: 1.3rem; font-weight: 700; color: #1F4E79; margin-top: 4px; }
+
+table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); font-size: 0.82rem; }
+thead th { background: #1F4E79; color: white; padding: 9px 10px; text-align: left; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; position: sticky; top: 0; }
+thead th.right { text-align: right; }
+thead th.center { text-align: center; }
+tbody tr { border-bottom: 1px solid #f5f5f5; transition: background 0.1s; }
+tbody tr:hover { background: #f8fbff; }
+tbody td { padding: 8px 10px; }
+tbody td.right { text-align: right; }
+tbody td.center { text-align: center; }
+.cod { font-weight: 700; color: #1F4E79; }
+.suc-badge { background: #1F4E79; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; }
+.est-critico  { background: #FFE0E0; color: #C00000; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; }
+.est-optimo   { background: #E2EFDA; color: #375623; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; }
+.est-exceso   { background: #FCE4D6; color: #843C0C; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; }
+.est-sinstock { background: #F2F2F2; color: #444; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; }
+.est-sinventa { background: #F2F2F2; color: #888; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; }
+.num-sug { color: #C55A11; font-weight: 700; }
+.col-resaltada { background: #FFF6D9 !important; }
+th.col-resaltada { background: #C55A11 !important; }
+tr.fila-resaltada td { background: #E8F0FE !important; }
+tr.fila-resaltada td.col-resaltada { background: #FFE9A8 !important; }
+tr.fila-resaltada:hover td { background: #DCE7FB !important; }
+
+.paginador { display: flex; align-items: center; justify-content: space-between; padding: 8px 4px; margin: 8px 0; font-size: 0.82rem; color: #666; }
+.pag-info { color: #888; }
+.pag-select { padding: 6px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.82rem; outline: none; background: white; cursor: pointer; }
+.pag-select:focus { border-color: #2E75B6; }
+.estado-area { background: white; border-radius: 10px; padding: 48px; text-align: center; color: #bbb; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border: 2px dashed #e0e0e0; }
+.spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #c8e0f5; border-top-color: #2E75B6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading { text-align: center; padding: 40px; color: #2E75B6; }
+.filtro-estado { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.btn-estado { padding: 5px 12px; border: 2px solid #e0e0e0; border-radius: 20px; font-size: 0.78rem; cursor: pointer; background: white; }
+.btn-estado.activo { border-color: #2E75B6; background: #EBF3FB; font-weight: 600; }
+</style>
+
+<!-- Panel de Parametros -->
+<div class="params-panel">
+  <div class="params-titulo">Parametros del Modelo</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+    <div>
+      <div class="params-titulo" style="margin-bottom:8px;">Factor Z por Clasificacion XYZ</div>
+      <div class="params-grid">
+        <div class="param-item"><div class="param-label">Clase X (Z)</div><input class="param-input" id="fz_x" type="number" step="0.01" value="2.05"></div>
+        <div class="param-item"><div class="param-label">Clase Y (Z)</div><input class="param-input" id="fz_y" type="number" step="0.01" value="1.65"></div>
+        <div class="param-item"><div class="param-label">Clase Z (Z)</div><input class="param-input" id="fz_z" type="number" step="0.01" value="1.28"></div>
+        <div class="param-item"><div class="param-label">Sin Clasif. (Z)</div><input class="param-input" id="fz_n" type="number" step="0.01" value="0"></div>
+      </div>
+    </div>
+    <div>
+      <div class="params-titulo" style="margin-bottom:8px;">Lead Time por Region (dias)</div>
+      <div class="params-grid">
+        <div class="param-item"><div class="param-label">Andino</div><input class="param-input" id="lt_andino" type="number" value="30"></div>
+        <div class="param-item"><div class="param-label">Llanero</div><input class="param-input" id="lt_llanero" type="number" value="45"></div>
+        <div class="param-item"><div class="param-label">Centro-Occidente</div><input class="param-input" id="lt_centro" type="number" value="35"></div>
+        <div class="param-item"><div class="param-label">Oriente</div><input class="param-input" id="lt_oriente" type="number" value="60"></div>
+      </div>
+    </div>
+  </div>
+  <div class="params-row">
+    <div class="param-item"><div class="param-label">Cobertura (dias)</div><input class="param-input" id="cobertura" type="number" value="30" style="width:120px;"></div>
+    <div class="param-item">
+      <div class="param-label">Periodo de Ventas</div>
+      <select class="param-input" id="meses" style="width:160px;">
+        <option value="3">Ultimos 3 meses</option>
+        <option value="6">Ultimos 6 meses</option>
+        <option value="12" selected>Ultimos 12 meses</option>
+        <option value="0">Todo el historico</option>
+      </select>
+    </div>
+    <button class="btn-accion btn-calcular" onclick="calcular()">&#9654; Calcular Min-Max</button>
+  </div>
+</div>
+
+<!-- Toolbar Sucursales -->
+<div class="toolbar">
+  <input type="text" id="searchInput" placeholder="Buscar SKU o descripcion..." oninput="filtrar()">
+  <div class="dd-wrap" id="wrapSuc">
+    <button class="dd-btn" id="btnSuc" onclick="toggleDD('Suc')">
+      <span id="lblSuc">Todas las sucursales</span><span class="arrow">&#9660;</span>
+    </button>
+    <div class="dd-list" id="listSuc">
+      <div class="dd-search"><input type="text" id="searchSuc" placeholder="Buscar..." oninput="renderSuc()"></div>
+      <div class="dd-actions"><span onclick="selTodosSuc()">Todos</span><span onclick="deselTodosSuc()">Ninguno</span></div>
+      <div id="itemsSuc"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Toolbar Proveedor -->
+<div class="toolbar-prov">
+  <div class="dd-wrap dd-wrap-ancho" id="wrapProv">
+    <button class="dd-btn dd-btn-ancho" id="btnProv" onclick="toggleDD('Prov')">
+      <span id="lblProv">Todos los proveedores</span><span class="arrow">&#9660;</span>
+    </button>
+    <div class="dd-list dd-list-ancho" id="listProv">
+      <div class="dd-search"><input type="text" id="searchProv" placeholder="Buscar proveedor..."></div>
+      <div id="itemsProv"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Filtro por estado -->
+<div class="filtro-estado">
+  <button class="btn-estado activo" data-estado="" onclick="setEstado(this, '')">Todos</button>
+  <button class="btn-estado" data-estado="CRITICO"  onclick="setEstado(this, 'CRITICO')">🔴 Critico</button>
+  <button class="btn-estado" data-estado="OPTIMO"   onclick="setEstado(this, 'OPTIMO')">🟢 Optimo</button>
+  <button class="btn-estado" data-estado="EXCESO"   onclick="setEstado(this, 'EXCESO')">🟡 Exceso</button>
+  <button class="btn-estado" data-estado="SIN_STOCK" onclick="setEstado(this, 'SIN_STOCK')">⚫ Sin Stock</button>
+  <button class="btn-estado" data-estado="SIN_VENTA" onclick="setEstado(this, 'SIN_VENTA')">○ Sin Venta</button>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-row" id="kpiRow" style="display:none;">
+  <div class="kpi critico"><div class="kpi-label">🔴 Criticos</div><div class="kpi-valor" id="kpiCritico">-</div></div>
+  <div class="kpi optimo"><div class="kpi-label">🟢 Optimos</div><div class="kpi-valor" id="kpiOptimo">-</div></div>
+  <div class="kpi exceso"><div class="kpi-label">🟡 Exceso</div><div class="kpi-valor" id="kpiExceso">-</div></div>
+  <div class="kpi sinstock"><div class="kpi-label">⚫ Sin Stock</div><div class="kpi-valor" id="kpiSinStock">-</div></div>
+  <div class="kpi sinventa"><div class="kpi-label">○ Sin Venta</div><div class="kpi-valor" id="kpiSinVenta">-</div></div>
+  <div class="kpi"><div class="kpi-label">Compra Sugerida (und)</div><div class="kpi-valor" id="kpiSugerida">-</div></div>
+</div>
+
+<div id="contenido"><div class="estado-area"><p>Configure los parametros y presione Calcular Min-Max</p></div></div>
+
+<script>
+let todosLosDatos = [];
+let datosFiltrados = [];
+let paginaActual = 1;
+let POR_PAGINA = 25;
+let estadoFiltro = "";
+let proveedoresList = [];
+let mapaNombresProv = {};
+let provSeleccionado = "";
+const selSuc = new Set();
+const todosSuc = [];
+
+// ---- Dropdown generico ----
+function toggleDD(key) {
+  ["Suc","Prov"].forEach(k => {
+    if (k !== key) {
+      document.getElementById("list"+k).classList.remove("open");
+      document.getElementById("btn"+k).classList.remove("active");
+    }
+  });
+  document.getElementById("list"+key).classList.toggle("open");
+  document.getElementById("btn"+key).classList.toggle("active");
+}
+document.addEventListener("click", function(e) {
+  ["Suc","Prov"].forEach(k => {
+    const wrap = document.getElementById("wrap"+k);
+    if (wrap && !wrap.contains(e.target)) {
+      document.getElementById("list"+k).classList.remove("open");
+      document.getElementById("btn"+k).classList.remove("active");
+    }
+  });
+});
+
+// ---- Sucursales ----
+function poblarSuc(data) {
+  const sucs = [...new Set(data.map(d => d.sucursal))].sort();
+  todosSuc.length = 0;
+  sucs.forEach(s => {
+    todosSuc.push(s);
+    const v = localStorage.getItem("suc_activa_" + s);
+    if (v === null || v === "1") selSuc.add(s); else selSuc.delete(s);
+  });
+  actualizarLabelSuc();
+  renderSuc();
+}
+function renderSuc() {
+  const q = (document.getElementById("searchSuc").value || "").toLowerCase();
+  const lista = todosSuc.filter(s => s.toLowerCase().includes(q));
+  const cont = document.getElementById("itemsSuc");
+  cont.innerHTML = "";
+  lista.forEach(s => {
+    const div = document.createElement("div");
+    div.className = "dd-item";
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = selSuc.has(s);
+    const span = document.createElement("span"); span.textContent = s;
+    div.appendChild(cb); div.appendChild(span);
+    cb.addEventListener("change", function() {
+      if (this.checked) selSuc.add(s); else selSuc.delete(s);
+      actualizarLabelSuc(); filtrar();
+    });
+    div.addEventListener("click", function(e) { if (e.target !== cb) cb.click(); });
+    cont.appendChild(div);
+  });
+}
+function selTodosSuc()   { todosSuc.forEach(s => selSuc.add(s));   actualizarLabelSuc(); renderSuc(); filtrar(); }
+function deselTodosSuc() { selSuc.clear(); actualizarLabelSuc(); renderSuc(); filtrar(); }
+function actualizarLabelSuc() {
+  const lbl = document.getElementById("lblSuc");
+  const n = selSuc.size, total = todosSuc.length;
+  if (n === 0)       lbl.textContent = "Sin sucursales";
+  else if (n===total) lbl.textContent = "Todas las sucursales";
+  else if (n === 1)  lbl.textContent = [...selSuc][0];
+  else               lbl.textContent = n + " sucursales";
+}
+
+// ---- Proveedores (seleccion unica) ----
+async function poblarProv() {
+  try { const r = await fetch("/api/proveedores/lista"); proveedoresList = await r.json(); }
+  catch(e) { proveedoresList = []; }
+  mapaNombresProv = {};
+  proveedoresList.forEach(p => { mapaNombresProv[p.codigo] = p.nombre; });
+  const activos = Object.keys(localStorage)
+    .filter(k => k.startsWith("prov_activo_") && localStorage.getItem(k) === "1")
+    .map(k => k.replace("prov_activo_", ""));
+  provSeleccionado = activos.length > 0 ? activos[0] : "";
+  actualizarLabelProv(); renderProv();
+  document.getElementById("searchProv").addEventListener("input", function() {
+    const q = this.value.toLowerCase();
+    document.getElementById("itemsProv").querySelectorAll(".dd-item-single").forEach(el => {
+      el.style.display = el.textContent.toLowerCase().includes(q) ? "" : "none";
+    });
+  });
+}
+function renderProv() {
+  const cont = document.getElementById("itemsProv");
+  cont.innerHTML = "";
+  const divTodos = document.createElement("div");
+  divTodos.className = "dd-item dd-item-single" + (provSeleccionado === "" ? " selected" : "");
+  divTodos.textContent = "Todos los proveedores";
+  divTodos.addEventListener("click", function() {
+    provSeleccionado = ""; actualizarLabelProv(); renderProv();
+    document.getElementById("listProv").classList.remove("open");
+    document.getElementById("btnProv").classList.remove("active");
+  });
+  cont.appendChild(divTodos);
+  proveedoresList.forEach(p => {
+    const div = document.createElement("div");
+    div.className = "dd-item dd-item-single" + (provSeleccionado === p.codigo ? " selected" : "");
+    div.textContent = p.codigo + " - " + p.nombre;
+    div.addEventListener("click", function() {
+      provSeleccionado = p.codigo; actualizarLabelProv(); renderProv();
+      document.getElementById("listProv").classList.remove("open");
+      document.getElementById("btnProv").classList.remove("active");
+    });
+    cont.appendChild(div);
+  });
+}
+function actualizarLabelProv() {
+  const lbl = document.getElementById("lblProv");
+  if (!provSeleccionado) { lbl.textContent = "Todos los proveedores"; return; }
+  const nombre = mapaNombresProv[provSeleccionado];
+  lbl.textContent = nombre ? (provSeleccionado + " - " + nombre) : provSeleccionado;
+}
+
+// ---- Estado filtro ----
+function setEstado(btn, estado) {
+  document.querySelectorAll(".btn-estado").forEach(b => b.classList.remove("activo"));
+  btn.classList.add("activo");
+  estadoFiltro = estado;
+  filtrar();
+}
+
+// ---- Calcular ----
+async function calcular() {
+  document.getElementById("contenido").innerHTML = "<div class='loading'><div class='spinner'></div><br>Calculando Min-Max...</div>";
+  document.getElementById("kpiRow").style.display = "none";
+  const params = new URLSearchParams({
+    meses:      document.getElementById("meses").value,
+    cobertura:  document.getElementById("cobertura").value,
+    fz_x:       document.getElementById("fz_x").value,
+    fz_y:       document.getElementById("fz_y").value,
+    fz_z:       document.getElementById("fz_z").value,
+    fz_n:       document.getElementById("fz_n").value,
+    lt_andino:  document.getElementById("lt_andino").value,
+    lt_llanero: document.getElementById("lt_llanero").value,
+    lt_centro:  document.getElementById("lt_centro").value,
+    lt_oriente: document.getElementById("lt_oriente").value,
+  });
+  if (provSeleccionado) params.append("co_prov", provSeleccionado);
+  const res  = await fetch("/api/minmax?" + params.toString());
+  todosLosDatos = await res.json();
+  // Compartir datos con modulo de Balanceo via sessionStorage
+  try { sessionStorage.setItem("minmaxData", JSON.stringify(todosLosDatos)); } catch(e) {}
+  poblarSuc(todosLosDatos);
+  actualizarKPIs(todosLosDatos);
+  document.getElementById("kpiRow").style.display = "grid";
+  paginaActual = 1;
+  filtrar();
+}
+
+// ---- Filtrar ----
+function filtrar() {
+  const q = document.getElementById("searchInput").value.toLowerCase();
+  datosFiltrados = todosLosDatos.filter(d =>
+    selSuc.has(d.sucursal) &&
+    (d.sku + d.descripcion).toLowerCase().includes(q) &&
+    (estadoFiltro === "" || d.estado === estadoFiltro)
+  );
+  paginaActual = 1;
+  renderTabla();
+}
+
+function actualizarKPIs(datos) {
+  document.getElementById("kpiCritico").textContent  = datos.filter(d => d.estado === "CRITICO").length.toLocaleString();
+  document.getElementById("kpiOptimo").textContent   = datos.filter(d => d.estado === "OPTIMO").length.toLocaleString();
+  document.getElementById("kpiExceso").textContent   = datos.filter(d => d.estado === "EXCESO").length.toLocaleString();
+  document.getElementById("kpiSinStock").textContent = datos.filter(d => d.estado === "SIN_STOCK").length.toLocaleString();
+  document.getElementById("kpiSinVenta").textContent = datos.filter(d => d.estado.includes("SIN_VENTA")).length.toLocaleString();
+  document.getElementById("kpiSugerida").textContent = datos.reduce((a,d) => a + d.sugerencia, 0).toLocaleString();
+}
+
+function estadoBadge(e) {
+  const map = {
+    "CRITICO":           "<span class='est-critico'>🔴 Critico</span>",
+    "OPTIMO":            "<span class='est-optimo'>🟢 Optimo</span>",
+    "EXCESO":            "<span class='est-exceso'>🟡 Exceso</span>",
+    "SIN_STOCK":         "<span class='est-sinstock'>⚫ Sin Stock</span>",
+    "SIN_VENTA":         "<span class='est-sinventa'>○ Sin Venta</span>",
+    "SIN_STOCK_SIN_VENTA": "<span class='est-sinventa'>○ Sin Stock/Venta</span>",
+  };
+  return map[e] || e;
+}
+
+let sortCol = "";
+let sortAsc = true;
+let colResaltada = "";
+let filaResaltada = -1;
+
+function sortByMinMax(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = true; }
+  colResaltada = col;
+  paginaActual = 1;
+  renderTabla();
+}
+function sortIconMinMax(col) {
+  if (sortCol !== col) return " &#8597;";
+  return sortAsc ? " &#8593;" : " &#8595;";
+}
+function toggleFilaMinMax(idx) {
+  filaResaltada = (filaResaltada === idx) ? -1 : idx;
+  renderTabla();
+}
+
+function renderTabla() {
+  const contenido = document.getElementById("contenido");
+  if (!datosFiltrados.length) {
+    contenido.innerHTML = "<div class='estado-area'><p>No hay registros con los filtros aplicados</p></div>";
+    return;
+  }
+
+  if (sortCol) {
+    datosFiltrados.sort((a, b) => {
+      let va = a[sortCol], vb = b[sortCol];
+      if (typeof va === "string") va = va.toLowerCase();
+      if (typeof vb === "string") vb = vb.toLowerCase();
+      if (va < vb) return sortAsc ? -1 : 1;
+      if (va > vb) return sortAsc ? 1 : -1;
+      return 0;
+    });
+  }
+
+  const totalPags = Math.ceil(datosFiltrados.length / POR_PAGINA);
+  if (paginaActual > totalPags) paginaActual = totalPags;
+  const inicio = (paginaActual - 1) * POR_PAGINA;
+  const pagina = datosFiltrados.slice(inicio, inicio + POR_PAGINA);
+
+  let opciones = "";
+  for (let i = 1; i <= totalPags; i++)
+    opciones += "<option value='" + i + "'" + (i===paginaActual?" selected":"") + ">Pag " + i + " de " + totalPags + "</option>";
+  const selectorTam = "<select class='pag-select' onchange='cambiarTam(this.value)' style='margin-left:8px;'>" +
+    [25,50,100].map(n => "<option value='" + n + "'" + (n===POR_PAGINA?" selected":"") + ">" + n + " / pag</option>").join("") + "</select>";
+  const paginador = "<div class='paginador'>" +
+    "<span class='pag-info'>" + datosFiltrados.length.toLocaleString() + " registros &nbsp;|&nbsp; mostrando " + (inicio+1) + " - " + Math.min(inicio+POR_PAGINA, datosFiltrados.length) + "</span>" +
+    "<div style='display:flex;gap:8px;align-items:center;'>" + selectorTam +
+    "<select class='pag-select' onchange='irPagina(this.value)'>" + opciones + "</select></div></div>";
+
+  const colCls = function(col) { return colResaltada === col ? " col-resaltada" : ""; };
+
+  let filas = pagina.map((d, i) => {
+    const idxGlobal = inicio + i;
+    const filaCls = filaResaltada === idxGlobal ? " fila-resaltada" : "";
+    return "<tr class='" + filaCls.trim() + "' onclick=\"toggleFilaMinMax(" + idxGlobal + ")\" style='cursor:pointer'>" +
+    "<td class='cod" + colCls("sku") + "'>" + d.sku + "</td>" +
+    "<td class='" + colCls("descripcion").trim() + "'>" + d.descripcion + "</td>" +
+    "<td class='" + colCls("sucursal").trim() + "'><span class='suc-badge'>" + d.sucursal + "</span></td>" +
+    "<td class='center" + colCls("region") + "'>" + d.region + "</td>" +
+    "<td class='center" + colCls("clasif") + "'>" + d.clasif + "</td>" +
+    "<td class='right" + colCls("pvd") + "'>" + d.pvd.toFixed(2) + "</td>" +
+    "<td class='right" + colCls("stock_seg") + "'>" + d.stock_seg.toFixed(1) + "</td>" +
+    "<td class='right" + colCls("punto_min") + "'>" + d.punto_min.toFixed(1) + "</td>" +
+    "<td class='right" + colCls("punto_max") + "'>" + d.punto_max.toFixed(1) + "</td>" +
+    "<td class='right" + colCls("stock_act") + "'>" + d.stock_act.toFixed(0) + "</td>" +
+    "<td class='right num-sug" + colCls("sugerencia") + "'>" + (d.sugerencia > 0 ? d.sugerencia.toFixed(0) : "-") + "</td>" +
+    "<td class='center" + colCls("estado") + "'>" + estadoBadge(d.estado) + "</td>" +
+    "</tr>";
+  }).join("");
+
+  const encCols = [
+    ["sku","SKU",""], ["descripcion","Descripcion",""], ["sucursal","Suc.",""],
+    ["region","Region","center"], ["clasif","XYZ","center"],
+    ["pvd","PVD","right"], ["stock_seg","Stock Seg.","right"],
+    ["punto_min","Pto. Min","right"], ["punto_max","Pto. Max","right"],
+    ["stock_act","Stock Act.","right"], ["sugerencia","Sugerencia","right"],
+    ["estado","Estado","center"]
+  ];
+  let thHtml = "";
+  encCols.forEach(function(c) {
+    const col = c[0], label = c[1], extra = c[2];
+    const clase = (extra + colCls(col)).trim();
+    const claseAttr = clase ? " class='" + clase + "'" : "";
+    thHtml += "<th" + claseAttr + " onclick='sortByMinMax(&quot;" + col + "&quot;)'>" + label + sortIconMinMax(col) + "</th>";
+  });
+
+  contenido.innerHTML = paginador +
+    "<table><thead><tr>" + thHtml + "</tr></thead><tbody>" + filas + "</tbody></table>" + paginador;
+}
+
+function irPagina(p) {
+  paginaActual = parseInt(p);
+  renderTabla();
+  document.getElementById("contenido").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function cambiarTam(n) { POR_PAGINA = parseInt(n); paginaActual = 1; renderTabla(); }
+
+window.onload = function() {
+  // Leer periodo guardado en localStorage
+  const p = localStorage.getItem("periodo_ventas");
+  if (p !== null) {
+    const sel = document.getElementById("meses");
+    if (sel) sel.value = p;
+  }
+  poblarProv();
+};
+</script>
+{% endblock %}

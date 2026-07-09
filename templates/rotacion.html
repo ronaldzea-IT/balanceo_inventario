@@ -1,0 +1,575 @@
+{% extends "base.html" %}
+{% block heading %}Rotacion{% endblock %}
+
+{% block content %}
+<style>
+.toolbar { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+.toolbar input[type=text] {
+  flex: 2; min-width: 200px; padding: 10px 16px;
+  border: 2px solid #e0e0e0; border-radius: 8px;
+  font-size: 0.9rem; outline: none;
+}
+.toolbar input[type=text]:focus { border-color: #2E75B6; }
+.btn-accion {
+  padding: 10px 16px; background: #2E75B6; color: white;
+  border: none; border-radius: 8px; font-size: 0.85rem;
+  cursor: pointer; white-space: nowrap;
+}
+.btn-accion:hover { background: #1F4E79; }
+
+.vista-toggle { display: flex; gap: 6px; background: #e6edf5; padding: 4px; border-radius: 8px; }
+.vista-toggle button {
+  padding: 8px 14px; border: none; border-radius: 6px; background: transparent;
+  font-size: 0.83rem; font-weight: 600; color: #1F4E79; cursor: pointer;
+}
+.vista-toggle button.active { background: #2E75B6; color: white; }
+
+.dd-wrap { position: relative; }
+.dd-btn {
+  padding: 10px 14px; border: 2px solid #e0e0e0; border-radius: 8px;
+  font-size: 0.85rem; background: white; cursor: pointer;
+  white-space: nowrap; min-width: 180px; text-align: left;
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+}
+.dd-btn:hover { border-color: #2E75B6; }
+.dd-btn.active { border-color: #2E75B6; }
+.dd-btn .arrow { font-size: 0.7rem; color: #999; }
+.dd-list {
+  display: none; position: absolute; top: calc(100% + 4px); left: 0;
+  background: white; border: 2px solid #2E75B6; border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 999;
+  min-width: 240px; max-height: 280px; overflow-y: auto;
+}
+.dd-list.open { display: block; }
+.dd-search { padding: 8px 10px; border-bottom: 1px solid #eee; }
+.dd-search input { width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.82rem; outline: none; box-sizing:border-box; }
+.dd-actions { display: flex; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #eee; }
+.dd-actions span { font-size: 0.75rem; color: #2E75B6; cursor: pointer; text-decoration: underline; }
+.dd-item { display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; font-size: 0.83rem; }
+.dd-item:hover { background: #f0f7ff; }
+.dd-item input[type=checkbox] { cursor: pointer; accent-color: #2E75B6; flex-shrink: 0; }
+
+.toolbar-prov { margin-bottom: 16px; }
+.dd-wrap-ancho { width: 100%; position: relative; }
+.dd-btn-ancho {
+  width: 100%; padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 8px;
+  font-size: 0.85rem; background: white; cursor: pointer; text-align: left;
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+}
+.dd-btn-ancho:hover { border-color: #2E75B6; }
+.dd-btn-ancho.active { border-color: #2E75B6; }
+.dd-btn-ancho .arrow { font-size: 0.7rem; color: #999; flex-shrink: 0; }
+.dd-list-ancho {
+  display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+  background: white; border: 2px solid #2E75B6; border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 999; max-height: 320px; overflow-y: auto;
+}
+.dd-list-ancho.open { display: block; }
+.dd-item-single { padding: 8px 14px; cursor: pointer; font-size: 0.83rem; }
+.dd-item-single:hover { background: #f0f7ff; }
+.dd-item-single.selected { background: #EBF3FB; color: #1F4E79; font-weight: 600; }
+
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpi { background: white; border-radius: 8px; padding: 14px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid #2E75B6; }
+.kpi.verde   { border-left-color: #375623; }
+.kpi.naranja { border-left-color: #C55A11; }
+.kpi.rojo    { border-left-color: #C00000; }
+.kpi.gris    { border-left-color: #999; }
+.kpi-label { font-size: 0.68rem; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
+.kpi-valor { font-size: 1.3rem; font-weight: 700; color: #1F4E79; margin-top: 4px; }
+
+.tabla-scroll { overflow-x: auto; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+table { width: 100%; min-width: 900px; border-collapse: collapse; background: white; font-size: 0.82rem; }
+thead th { background: #1F4E79; color: white; padding: 10px 10px; text-align: left; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; position: sticky; top: 0; cursor: pointer; white-space: nowrap; }
+thead th:hover { background: #2E75B6; }
+thead th.right { text-align: right; }
+thead th.center { text-align: center; }
+tbody tr { border-bottom: 1px solid #f5f5f5; transition: background 0.1s; }
+tbody tr:hover { background: #f8fbff; }
+tbody td { padding: 8px 10px; }
+tbody td.right { text-align: right; }
+tbody td.center { text-align: center; }
+.cod { font-weight: 700; color: #1F4E79; }
+.suc-badge { background: #1F4E79; color: white; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+.badge-excelente { background: #d4edda; color: #1e7e34; }
+.badge-buena     { background: #d1ecf1; color: #0c6e85; }
+.badge-aceptable { background: #fff3cd; color: #8a6d00; }
+.badge-lenta     { background: #ffe2c2; color: #a3560f; }
+.badge-muerto    { background: #f1c0c0; color: #a10000; }
+.badge-quiebre   { background: #f8d7da; color: #a10000; }
+.badge-sinmov    { background: #e2e3e5; color: #6c757d; }
+
+.badge-A { background: #d4edda; color: #1e7e34; }
+.badge-B { background: #fff3cd; color: #8a6d00; }
+.badge-C { background: #e2e3e5; color: #6c757d; }
+.badge-X { background: #d4edda; color: #1e7e34; }
+.badge-Y { background: #fff3cd; color: #8a6d00; }
+.badge-Z { background: #f8d7da; color: #a10000; }
+.badge-neutro { background: #e2e3e5; color: #6c757d; }
+
+.paginador { display: flex; align-items: center; justify-content: space-between; padding: 8px 4px; margin: 8px 0; font-size: 0.82rem; color: #666; }
+.pag-info { color: #888; }
+.pag-select { padding: 6px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.82rem; outline: none; background: white; cursor:pointer; }
+.pag-select:focus { border-color: #2E75B6; }
+
+.estado-area { background: white; border-radius: 10px; padding: 48px; text-align: center; color: #bbb; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border: 2px dashed #e0e0e0; }
+.spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #c8e0f5; border-top-color: #2E75B6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading { text-align: center; padding: 40px; color: #2E75B6; }
+.periodo-info { font-size: 0.78rem; color: #888; margin-bottom: 10px; }
+
+.col-resaltada { background: #FFF6D9 !important; }
+th.col-resaltada { background: #C55A11 !important; }
+tr.fila-resaltada td { background: #E8F0FE !important; }
+tr.fila-resaltada td.col-resaltada { background: #FFE9A8 !important; }
+tr.fila-resaltada:hover td { background: #DCE7FB !important; }
+</style>
+
+<div class="toolbar">
+  <input type="text" id="searchInput" placeholder="Buscar SKU o descripcion..." oninput="filtrar()">
+
+  <div class="vista-toggle">
+    <button id="btnVistaDetalle" class="active" onclick="cambiarVista('detalle')">Detalle SKU-Sucursal</button>
+    <button id="btnVistaConsolidado" onclick="cambiarVista('consolidado')">Consolidado por SKU</button>
+  </div>
+
+  <div class="dd-wrap" id="wrapSuc">
+    <button class="dd-btn" id="btnSuc" onclick="toggleDD('Suc')">
+      <span id="lblSuc">Todas las sucursales</span><span class="arrow">&#9660;</span>
+    </button>
+    <div class="dd-list" id="listSuc">
+      <div class="dd-search"><input type="text" id="searchSuc" placeholder="Buscar sucursal..." oninput="renderSuc()"></div>
+      <div class="dd-actions"><span onclick="selTodosSuc()">Todos</span><span onclick="deselTodosSuc()">Ninguno</span></div>
+      <div id="itemsSuc"></div>
+    </div>
+  </div>
+
+  <button class="btn-accion" onclick="cargar()">&#x21BB; Recargar</button>
+</div>
+
+<div class="toolbar-prov">
+  <div class="dd-wrap-ancho" id="wrapProv">
+    <button class="dd-btn-ancho" id="btnProv" onclick="toggleProv()">
+      <span id="lblProv">Todos los proveedores</span><span class="arrow">&#9660;</span>
+    </button>
+    <div class="dd-list-ancho" id="listProv">
+      <div class="dd-search"><input type="text" id="searchProv" placeholder="Buscar proveedor..."></div>
+      <div id="itemsProv"></div>
+    </div>
+  </div>
+</div>
+
+<div class="periodo-info" id="periodoInfo"></div>
+
+<div class="kpi-row" id="kpiRow" style="display:none;"></div>
+
+<div id="contenido"><div class="loading"><div class="spinner"></div><br>Cargando rotacion...</div></div>
+
+<script>
+let vista = "detalle";
+let datosDetalle = [];
+let datosConsolidado = [];
+let datosFiltrados = [];
+let paginaActual = 1;
+let POR_PAGINA = 100;
+let proveedoresList = [];
+let mapaNombresProv = {};
+let provSeleccionado = "";
+let sortCol = "";
+let sortAsc = true;
+let colResaltada = "";
+let filaResaltada = -1;
+
+const selSuc = new Set();
+const todosSuc = [];
+
+function toggleDD(key) {
+  document.getElementById("list"+key).classList.toggle("open");
+  document.getElementById("btn"+key).classList.toggle("active");
+}
+document.addEventListener("click", function(e) {
+  const wrap = document.getElementById("wrapSuc");
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById("listSuc").classList.remove("open");
+    document.getElementById("btnSuc").classList.remove("active");
+  }
+  const wp = document.getElementById("wrapProv");
+  if (wp && !wp.contains(e.target)) {
+    document.getElementById("listProv").classList.remove("open");
+    document.getElementById("btnProv").classList.remove("active");
+  }
+});
+
+function cambiarVista(v) {
+  vista = v;
+  document.getElementById("btnVistaDetalle").classList.toggle("active", v === "detalle");
+  document.getElementById("btnVistaConsolidado").classList.toggle("active", v === "consolidado");
+  document.getElementById("wrapSuc").style.display = v === "detalle" ? "" : "none";
+  sortCol = ""; colResaltada = ""; filaResaltada = -1;
+  paginaActual = 1;
+  filtrar();
+}
+
+function poblarSuc(data) {
+  const sucs = [...new Set(data.map(d => d.sucursal))].sort();
+  todosSuc.length = 0;
+  sucs.forEach(s => {
+    todosSuc.push(s);
+    const v = localStorage.getItem("suc_activa_" + s);
+    if (v === null || v === "1") selSuc.add(s); else selSuc.delete(s);
+  });
+  actualizarLabelSuc();
+  renderSuc();
+}
+
+function renderSuc() {
+  const q = (document.getElementById("searchSuc").value || "").toLowerCase();
+  const lista = todosSuc.filter(s => s.toLowerCase().includes(q));
+  const cont = document.getElementById("itemsSuc");
+  cont.innerHTML = "";
+  lista.forEach(s => {
+    const div = document.createElement("div");
+    div.className = "dd-item";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = selSuc.has(s);
+    const span = document.createElement("span");
+    span.textContent = s;
+    div.appendChild(cb);
+    div.appendChild(span);
+    cb.addEventListener("change", function() {
+      if (this.checked) selSuc.add(s); else selSuc.delete(s);
+      actualizarLabelSuc(); filtrar();
+    });
+    div.addEventListener("click", function(e) { if (e.target !== cb) cb.click(); });
+    cont.appendChild(div);
+  });
+}
+
+function selTodosSuc() { todosSuc.forEach(s => selSuc.add(s)); actualizarLabelSuc(); renderSuc(); filtrar(); }
+function deselTodosSuc() { selSuc.clear(); actualizarLabelSuc(); renderSuc(); filtrar(); }
+
+function actualizarLabelSuc() {
+  const lbl = document.getElementById("lblSuc");
+  const n = selSuc.size, total = todosSuc.length;
+  if (n === 0)      lbl.textContent = "Sin sucursales";
+  else if (n===total) lbl.textContent = "Todas las sucursales";
+  else if (n === 1) lbl.textContent = [...selSuc][0];
+  else              lbl.textContent = n + " sucursales";
+}
+
+function toggleProv() {
+  document.getElementById("listProv").classList.toggle("open");
+  document.getElementById("btnProv").classList.toggle("active");
+}
+
+async function poblarProv() {
+  try {
+    const res = await fetch("/api/proveedores/lista");
+    proveedoresList = await res.json();
+  } catch(e) { proveedoresList = []; }
+  mapaNombresProv = {};
+  proveedoresList.forEach(p => { mapaNombresProv[p.codigo] = p.nombre; });
+
+  const activos = Object.keys(localStorage)
+    .filter(k => k.startsWith("prov_activo_") && localStorage.getItem(k) === "1")
+    .map(k => k.replace("prov_activo_", ""));
+  provSeleccionado = activos.length > 0 ? activos[0] : "";
+
+  actualizarLabelProv();
+  renderProv();
+  document.getElementById("searchProv").addEventListener("input", function() {
+    const q = this.value.toLowerCase();
+    document.getElementById("itemsProv").querySelectorAll(".dd-item-single").forEach(el => {
+      el.style.display = el.textContent.toLowerCase().includes(q) ? "" : "none";
+    });
+  });
+}
+
+function renderProv() {
+  const cont = document.getElementById("itemsProv");
+  cont.innerHTML = "";
+  const divTodos = document.createElement("div");
+  divTodos.className = "dd-item-single" + (provSeleccionado === "" ? " selected" : "");
+  divTodos.textContent = "Todos los proveedores";
+  divTodos.addEventListener("click", function() {
+    provSeleccionado = "";
+    actualizarLabelProv(); renderProv(); cargar();
+    document.getElementById("listProv").classList.remove("open");
+    document.getElementById("btnProv").classList.remove("active");
+  });
+  cont.appendChild(divTodos);
+
+  proveedoresList.forEach(p => {
+    const div = document.createElement("div");
+    div.className = "dd-item-single" + (provSeleccionado === p.codigo ? " selected" : "");
+    div.textContent = p.codigo + " - " + p.nombre;
+    div.addEventListener("click", function() {
+      provSeleccionado = p.codigo;
+      actualizarLabelProv(); renderProv(); cargar();
+      document.getElementById("listProv").classList.remove("open");
+      document.getElementById("btnProv").classList.remove("active");
+    });
+    cont.appendChild(div);
+  });
+}
+
+function actualizarLabelProv() {
+  const lbl = document.getElementById("lblProv");
+  if (!provSeleccionado) { lbl.textContent = "Todos los proveedores"; return; }
+  const nombre = mapaNombresProv[provSeleccionado];
+  lbl.textContent = nombre ? (provSeleccionado + " - " + nombre) : provSeleccionado;
+}
+
+async function cargar() {
+  document.getElementById("contenido").innerHTML = "<div class='loading'><div class='spinner'></div><br>Cargando rotacion...</div>";
+  document.getElementById("kpiRow").style.display = "none";
+
+  const url = "/api/rotacion" + (provSeleccionado ? "?co_prov=" + encodeURIComponent(provSeleccionado) : "");
+  const res  = await fetch(url);
+  const data = await res.json();
+  if (!data.ok) {
+    document.getElementById("contenido").innerHTML = "<div class='estado-area'><p>" + (data.error || "Error al cargar") + "</p></div>";
+    return;
+  }
+
+  datosDetalle = data.detalle;
+  datosConsolidado = data.consolidado;
+
+  const periodo = document.getElementById("periodoInfo");
+  periodo.textContent = "Periodo cargado: " + data.periodo.desde + " - " + data.periodo.hasta +
+    "  |  Ventana de analisis: " + data.meses_historial[0] + " a " + data.meses_historial[data.meses_historial.length-1] +
+    " (" + data.meses_historial.length + " meses)";
+
+  poblarSuc(datosDetalle);
+  sortCol = ""; colResaltada = ""; filaResaltada = -1;
+  filtrar();
+  document.getElementById("kpiRow").style.display = "grid";
+}
+
+function filtrar() {
+  const q = document.getElementById("searchInput").value.toLowerCase();
+  if (vista === "detalle") {
+    datosFiltrados = datosDetalle.filter(d =>
+      selSuc.has(d.sucursal) &&
+      (d.sku + d.descripcion).toLowerCase().includes(q)
+    );
+  } else {
+    datosFiltrados = datosConsolidado.filter(d =>
+      (d.sku + d.descripcion).toLowerCase().includes(q)
+    );
+  }
+  paginaActual = 1;
+  actualizarKPIs();
+  renderTabla();
+}
+
+function contarDiag(arr, texto) {
+  return arr.filter(d => d.diagnostico.indexOf(texto) === 0).length;
+}
+
+function actualizarKPIs() {
+  const cont = document.getElementById("kpiRow");
+  if (vista === "detalle") {
+    const rotaciones = datosFiltrados.filter(d => d.rotacion > 0 && d.rotacion < 999);
+    const promRot = rotaciones.length ? (rotaciones.reduce((a,d)=>a+d.rotacion,0)/rotaciones.length) : 0;
+    const dohs = datosFiltrados.filter(d => d.doh > 0 && d.rotacion < 999);
+    const promDoh = dohs.length ? (dohs.reduce((a,d)=>a+d.doh,0)/dohs.length) : 0;
+    cont.innerHTML =
+      kpi("Combos SKU-Sucursal", datosFiltrados.length.toLocaleString()) +
+      kpi("Rotacion promedio", promRot.toFixed(1) + "x", "verde") +
+      kpi("DOH promedio", Math.round(promDoh) + " dias", "verde") +
+      kpi("Quiebre con demanda", contarDiag(datosFiltrados,"Quiebre").toLocaleString(), "rojo") +
+      kpi("Stock muerto", contarDiag(datosFiltrados,"Stock muerto").toLocaleString(), "naranja") +
+      kpi("Sin movimiento", contarDiag(datosFiltrados,"Sin").toLocaleString(), "gris");
+  } else {
+    const a = datosFiltrados.filter(d=>d.abc==="A").length;
+    const b = datosFiltrados.filter(d=>d.abc==="B").length;
+    const c = datosFiltrados.filter(d=>d.abc==="C").length;
+    const x = datosFiltrados.filter(d=>d.xyz==="X").length;
+    const y = datosFiltrados.filter(d=>d.xyz==="Y").length;
+    const z = datosFiltrados.filter(d=>d.xyz==="Z").length;
+    cont.innerHTML =
+      kpi("SKUs", datosFiltrados.length.toLocaleString()) +
+      kpi("A / B / C", a+" / "+b+" / "+c, "verde") +
+      kpi("X / Y / Z", x+" / "+y+" / "+z, "naranja") +
+      kpi("A discontinuar (CZ)", datosFiltrados.filter(d=>d.matriz==="CZ").length.toLocaleString(), "rojo");
+  }
+}
+
+function kpi(label, valor, clase) {
+  return "<div class='kpi " + (clase||"") + "'><div class='kpi-label'>" + label + "</div><div class='kpi-valor'>" + valor + "</div></div>";
+}
+
+function badgeDiag(d) {
+  const map = {
+    "Excelente rotacion (>12x)": "excelente",
+    "Buena rotacion (6-12x)": "buena",
+    "Rotacion aceptable (3-6x)": "aceptable",
+    "Rotacion lenta (1-3x)": "lenta",
+    "Stock muerto (<1x)": "muerto",
+    "Quiebre - con demanda": "quiebre",
+    "Sin movimiento": "sinmov",
+  };
+  const cls = map[d] || "sinmov";
+  return "<span class='badge badge-" + cls + "'>" + d + "</span>";
+}
+
+function badgeLetra(v) {
+  if (!v || v === "-") return "<span class='badge badge-neutro'>-</span>";
+  return "<span class='badge badge-" + v + "'>" + v + "</span>";
+}
+
+function sortByRot(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = true; }
+  colResaltada = col;
+  renderTabla();
+}
+function sortIconRot(col) {
+  if (sortCol !== col) return " &#8597;";
+  return sortAsc ? " &#8593;" : " &#8595;";
+}
+function toggleFilaRot(idx) {
+  filaResaltada = (filaResaltada === idx) ? -1 : idx;
+  renderTabla();
+}
+
+function renderTabla() {
+  const contenido = document.getElementById("contenido");
+  if (!datosFiltrados.length) {
+    contenido.innerHTML = "<div class='estado-area'><p>No hay registros con los filtros aplicados</p></div>";
+    return;
+  }
+
+  if (sortCol) {
+    datosFiltrados.sort((a, b) => {
+      let va = a[sortCol], vb = b[sortCol];
+      if (typeof va === "string") va = va.toLowerCase();
+      if (typeof vb === "string") vb = vb.toLowerCase();
+      if (va === undefined || va === null) va = "";
+      if (vb === undefined || vb === null) vb = "";
+      if (va < vb) return sortAsc ? -1 : 1;
+      if (va > vb) return sortAsc ? 1 : -1;
+      return 0;
+    });
+  }
+
+  const totalPags = Math.ceil(datosFiltrados.length / POR_PAGINA);
+  if (paginaActual > totalPags) paginaActual = totalPags;
+  const inicio = (paginaActual - 1) * POR_PAGINA;
+  const pagina = datosFiltrados.slice(inicio, inicio + POR_PAGINA);
+
+  let opciones = "";
+  for (let i = 1; i <= totalPags; i++)
+    opciones += "<option value='" + i + "'" + (i===paginaActual?" selected":"") + ">Pag " + i + " de " + totalPags + "</option>";
+
+  const selectorTam = "<select class='pag-select' onchange='cambiarTam(this.value)' style='margin-left:8px;'>" +
+    [25,50,100,250].map(n => "<option value='" + n + "'" + (n===POR_PAGINA?" selected":"") + ">" + n + " / pag</option>").join("") +
+    "</select>";
+
+  const paginador = "<div class='paginador'>" +
+    "<span class='pag-info'>" + datosFiltrados.length.toLocaleString() + " registros &nbsp;|&nbsp; mostrando " + (inicio+1) + " - " + Math.min(inicio+POR_PAGINA, datosFiltrados.length) + "</span>" +
+    "<div style='display:flex;gap:8px;align-items:center;'>" + selectorTam +
+    "<select class='pag-select' onchange='irPagina(this.value)'>" + opciones + "</select></div></div>";
+
+  const colCls = function(col) { return colResaltada === col ? " col-resaltada" : ""; };
+
+  let tabla;
+  if (vista === "detalle") {
+    const encCols = [
+      ["sku","SKU",""], ["descripcion","Descripcion",""], ["sucursal","Sucursal",""],
+      ["costo_unit","Costo Unit.","right"], ["ventas_6m","Ventas 6M","right"], ["ventas_anual","Ventas Anual","right"],
+      ["stock_actual","Stock Actual","right"], ["rotacion","Rotacion","right"], ["doh","DOH","right"],
+      ["xyz","XYZ","center"], ["diagnostico","Diagnostico",""]
+    ];
+    let thHtml = "";
+    encCols.forEach(function(c) {
+      const col = c[0], label = c[1], extra = c[2];
+      const clase = (extra + colCls(col)).trim();
+      const claseAttr = clase ? " class='" + clase + "'" : "";
+      thHtml += "<th" + claseAttr + " onclick='sortByRot(&quot;" + col + "&quot;)'>" + label + sortIconRot(col) + "</th>";
+    });
+
+    let filas = pagina.map((d, i) => {
+      const idxGlobal = inicio + i;
+      const filaCls = filaResaltada === idxGlobal ? " fila-resaltada" : "";
+      return "<tr class='" + filaCls.trim() + "' onclick=\"toggleFilaRot(" + idxGlobal + ")\" style='cursor:pointer'>" +
+      "<td class='cod" + colCls("sku") + "'>" + d.sku + "</td>" +
+      "<td class='" + colCls("descripcion").trim() + "'>" + d.descripcion + "</td>" +
+      "<td class='" + colCls("sucursal").trim() + "'><span class='suc-badge'>" + d.sucursal + "</span></td>" +
+      "<td class='right" + colCls("costo_unit") + "'>" + d.costo_unit.toFixed(2) + "</td>" +
+      "<td class='right" + colCls("ventas_6m") + "'>" + d.ventas_6m.toLocaleString() + "</td>" +
+      "<td class='right" + colCls("ventas_anual") + "'>" + d.ventas_anual.toLocaleString() + "</td>" +
+      "<td class='right" + colCls("stock_actual") + "'>" + d.stock_actual.toLocaleString() + "</td>" +
+      "<td class='right" + colCls("rotacion") + "'>" + (d.rotacion >= 999 ? "-" : d.rotacion.toFixed(1) + "x") + "</td>" +
+      "<td class='right" + colCls("doh") + "'>" + (d.rotacion >= 999 ? "-" : d.doh) + "</td>" +
+      "<td class='center" + colCls("xyz") + "'>" + badgeLetra(d.xyz) + "</td>" +
+      "<td class='" + colCls("diagnostico").trim() + "'>" + badgeDiag(d.diagnostico) + "</td>" +
+      "</tr>";
+    }).join("");
+
+    tabla = "<div class='tabla-scroll'><table><thead><tr>" + thHtml + "</tr></thead><tbody>" + filas + "</tbody></table></div>";
+  } else {
+    const encCols = [
+      ["sku","SKU",""], ["descripcion","Descripcion",""], ["categoria","Categoria",""], ["proveedor","Proveedor",""],
+      ["costo_unit","Costo Unit.","right"], ["ventas_6m","Ventas 6M","right"], ["valor_venta","Valor Venta Anual","right"],
+      ["stock_total","Stock Total","right"], ["rotacion","Rotacion","right"], ["doh","DOH","right"],
+      ["abc","ABC","center"], ["xyz","XYZ","center"], ["estrategia","Estrategia",""]
+    ];
+    let thHtml = "";
+    encCols.forEach(function(c) {
+      const col = c[0], label = c[1], extra = c[2];
+      const clase = (extra + colCls(col)).trim();
+      const claseAttr = clase ? " class='" + clase + "'" : "";
+      thHtml += "<th" + claseAttr + " onclick='sortByRot(&quot;" + col + "&quot;)'>" + label + sortIconRot(col) + "</th>";
+    });
+
+    let filas = pagina.map((d, i) => {
+      const idxGlobal = inicio + i;
+      const filaCls = filaResaltada === idxGlobal ? " fila-resaltada" : "";
+      return "<tr class='" + filaCls.trim() + "' onclick=\"toggleFilaRot(" + idxGlobal + ")\" style='cursor:pointer'>" +
+      "<td class='cod" + colCls("sku") + "'>" + d.sku + "</td>" +
+      "<td class='" + colCls("descripcion").trim() + "'>" + d.descripcion + "</td>" +
+      "<td class='" + colCls("categoria").trim() + "'>" + d.categoria + "</td>" +
+      "<td class='" + colCls("proveedor").trim() + "'>" + d.proveedor + "</td>" +
+      "<td class='right" + colCls("costo_unit") + "'>" + d.costo_unit.toFixed(2) + "</td>" +
+      "<td class='right" + colCls("ventas_6m") + "'>" + d.ventas_6m.toLocaleString() + "</td>" +
+      "<td class='right" + colCls("valor_venta") + "'>" + d.valor_venta.toLocaleString(undefined,{maximumFractionDigits:0}) + "</td>" +
+      "<td class='right" + colCls("stock_total") + "'>" + d.stock_total.toLocaleString() + "</td>" +
+      "<td class='right" + colCls("rotacion") + "'>" + (d.rotacion >= 999 ? "-" : d.rotacion.toFixed(1) + "x") + "</td>" +
+      "<td class='right" + colCls("doh") + "'>" + (d.rotacion >= 999 ? "-" : d.doh) + "</td>" +
+      "<td class='center" + colCls("abc") + "'>" + badgeLetra(d.abc) + "</td>" +
+      "<td class='center" + colCls("xyz") + "'>" + badgeLetra(d.xyz) + "</td>" +
+      "<td class='" + colCls("estrategia").trim() + "'>" + d.estrategia + "</td>" +
+      "</tr>";
+    }).join("");
+
+    tabla = "<div class='tabla-scroll'><table><thead><tr>" + thHtml + "</tr></thead><tbody>" + filas + "</tbody></table></div>";
+  }
+
+  contenido.innerHTML = paginador + tabla + paginador;
+}
+
+function irPagina(p) {
+  paginaActual = parseInt(p);
+  renderTabla();
+  document.getElementById("contenido").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function cambiarTam(n) {
+  POR_PAGINA = parseInt(n);
+  paginaActual = 1;
+  renderTabla();
+}
+
+async function init() {
+  await poblarProv();
+  await cargar();
+}
+
+window.onload = init;
+</script>
+{% endblock %}

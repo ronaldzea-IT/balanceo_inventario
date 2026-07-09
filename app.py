@@ -1,0 +1,1408 @@
+import os
+import statistics
+import pandas as pd
+from flask import Flask, render_template, jsonify, request
+from config import get_connection
+from datetime import datetime
+from dotenv import load_dotenv
+import json
+
+load_dotenv()
+MESES_HISTORIAL = int(os.environ.get("MESES_HISTORIAL", 6))
+
+app = Flask(__name__)
+
+# -- Dashboard
+def get_kpis():
+    conn = get_connection()
+    cur  = conn.cursor()
+    cur.execute("""
+        SELECT COUNT(DISTINCT p.co_prov)
+        FROM saProveedor p
+        INNER JOIN saFacturaCompra f ON p.co_prov = f.co_prov
+        WHERE p.inactivo = 0 AND ISNULL(f.anulado,0) = 0
+    """)
+    proveedores = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM saArticulo WHERE anulado = 0")
+    articulos = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM saSucursal")
+    sucursales = cur.fetchone()[0]
+    cur.execute("""
+        SELECT COUNT(DISTINCT co_art)
+        FROM saStockAlmacen
+        WHERE stock > 0
+    """)
+    skus_stock = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+    return {"proveedores": proveedores, "articulos": articulos,
+            "sucursales": sucursales, "skus_stock": skus_stock}
+
+@app.route("/")
+def dashboard():
+    kpis = get_kpis()
+    now  = datetime.now().strftime("%d/%m/%Y %H:%M")
+    return render_template("dashboard.html", kpis=kpis, now=now)
+
+
+@app.route("/maestros")
+def maestros():
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    return render_template("maestros.html", now=now)
+
+@app.route("/proveedores")
+def proveedores():
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    return render_template("proveedores.html", now=now)
+
+@app.route("/articulos")
+def articulos():
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    return render_template("articulos.html", now=now)
+
+@app.route("/sucursales")
+def sucursales():
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    return render_template("sucursales.html", now=now)
+
+@app.route("/ventas")
+def ventas():
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    return render_template("ventas.html", now=now)
+
+@app.route("/stock")
+def stock():
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    return render_template("stock.html", now=now)
+
+@app.route("/rotacion")
+def rotacion():
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    return render_template("rotacion.html", now=now)
+
+@app.route("/minmax")
+def minmax():
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    return render_template("minmax.html", now=now)
+
+@app.route("/balanceo")
+def balanceo():
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    return render_template("balanceo.html", now=now)
+
+# -- API Proveedores
+@app.route("/api/proveedores/buscar")
+def api_proveedores_buscar():
+    q = request.args.get("q", "").strip()
+    if len(q) < 2:
+        return jsonify([])
+    conn = get_connection()
+    cur  = conn.cursor()
+    cur.execute("""
+        SELECT TOP 30
+            RTRIM(p.co_prov)                           AS codigo,
+            RTRIM(p.prov_des)                          AS nombre,
+            ISNULL(RTRIM(p.rif), '')                   AS rif,
+            ISNULL(RTRIM(p.ciudad), '')                AS ciudad,
+            c.nro_facturas,
+            CONVERT(varchar(10), c.ultima_compra, 120) AS ultima_compra
+        FROM saProveedor p
+        INNER JOIN (
+            SELECT co_prov,
+                   COUNT(DISTINCT doc_num)    AS nro_facturas,
+                   MAX(fec_emis)              AS ultima_compra
+            FROM saFacturaCompra
+            WHERE ISNULL(anulado,0) = 0
+            GROUP BY co_prov
+        ) c ON p.co_prov = c.co_prov
+        WHERE p.inactivo = 0
+          AND (RTRIM(p.prov_des) LIKE ? OR RTRIM(p.co_prov) LIKE ?)
+        ORDER BY c.ultima_compra DESC
+    """, (f"%{q}%", f"%{q}%"))
+    rows = [dict(zip([d[0] for d in cur.description], r)) for r in cur.fetchall()]
+    cur.close(); conn.close()
+    return jsonify(rows)
+
+@app.route("/api/proveedores/<codigo>/articulos")
+def api_proveedor_articulos(codigo):
+    conn = get_connection()
+    cur  = conn.cursor()
+    cur.execute("""
+        SELECT
+            RTRIM(a.co_art)                AS sku,
+            RTRIM(a.art_des)               AS descripcion,
+            ISNULL(RTRIM(lin.lin_des), '') AS linea,
+            ISNULL(RTRIM(cat.cat_des), '') AS categoria,
+            ISNULL(RTRIM(a.item), '')      AS unidad,
+            ISNULL(p1.monto, 0)            AS precio,
+            CASE WHEN a.anulado = 0 THEN 'Activo' ELSE 'Inactivo' END AS estatus
+        FROM saArtProveedorReng ap
+        JOIN saArticulo a ON RTRIM(ap.co_art) = RTRIM(a.co_art)
+        LEFT JOIN saCatArticulo cat ON RTRIM(a.co_cat) = RTRIM(cat.co_cat)
+        LEFT JOIN saLineaArticulo lin ON RTRIM(a.co_lin) = RTRIM(lin.co_lin)
+        LEFT JOIN (
+            SELECT co_art, monto FROM saArtPrecio
+            WHERE RTRIM(co_precio) = '1' AND ISNULL(Inactivo,0) = 0
+        ) p1 ON RTRIM(a.co_art) = RTRIM(p1.co_art)
+        WHERE RTRIM(ap.co_prov) = ?
+        ORDER BY RTRIM(lin.lin_des), RTRIM(a.art_des)
+    """, (codigo,))
+    arts = [dict(zip([d[0] for d in cur.description], r)) for r in cur.fetchall()]
+    for a in arts:
+        a["precio"] = f"{float(a['precio']):,.2f}"
+    cur.close(); conn.close()
+    return jsonify(arts)
+
+@app.route("/api/sucursales")
+def api_sucursales():
+    conn = get_connection()
+    cur  = conn.cursor()
+    cur.execute("""
+        SELECT
+            RTRIM(co_sucur)   AS codigo,
+            RTRIM(sucur_des)  AS nombre,
+            ISNULL(RTRIM(campo2), '') AS region
+        FROM saSucursal
+        ORDER BY campo2, co_sucur
+    """)
+    rows = [dict(zip([d[0] for d in cur.description], r)) for r in cur.fetchall()]
+    cur.close(); conn.close()
+    return jsonify(rows)
+
+# -- API Ventas
+@app.route("/api/ventas/cargar", methods=["POST"])
+def api_ventas_cargar():
+    try:
+        cache = os.path.join(os.path.dirname(__file__), "ventas_cache.json")
+        if not os.path.exists(cache):
+            return jsonify({"ok": False, "error": "Cache no encontrado. Ejecuta procesar_ventas.py primero."})
+        with open(cache, encoding="utf-8") as f:
+            data = json.load(f)
+        return jsonify({"ok": True, "registros": data["registros"], "periodo": data["periodo"]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+@app.route("/api/ventas/datos")
+def api_ventas_datos():
+    cache = os.path.join(os.path.dirname(__file__), "ventas_cache.json")
+    if not os.path.exists(cache):
+        return jsonify({"ok": False, "error": "Cache no encontrado."})
+    with open(cache, encoding="utf-8") as f:
+        data = json.load(f)
+    sucursal = request.args.get("sucursal", "")
+    mes      = request.args.get("mes", "")
+    q        = request.args.get("q", "").lower()
+    registros = data["registros"]
+    if sucursal:
+        registros = [d for d in registros if d["sucursal"] == sucursal]
+    if mes:
+        registros = [d for d in registros if d["anio_mes"] == mes]
+    if q:
+        registros = [d for d in registros if q in d["sku"].lower() or q in d["descripcion"].lower()]
+    return jsonify({"ok": True, "registros": registros, "periodo": data["periodo"]})
+
+# -- API Articulos
+@app.route("/api/articulos/estatus", methods=["POST"])
+def api_articulos_estatus():
+    datos  = request.get_json()
+    sku    = datos.get("sku")
+    activo = datos.get("activo")
+    conn   = get_connection()
+    cur    = conn.cursor()
+    cur.execute(
+        "UPDATE saArticulo SET anulado = ? WHERE RTRIM(co_art) = ?",
+        (0 if activo else 1, sku)
+    )
+    conn.commit()
+    cur.close(); conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/ventas/reprocesar", methods=["POST"])
+def api_ventas_reprocesar():
+    import subprocess, sys
+    try:
+        archivo = request.files.get("archivo")
+        if not archivo:
+            return jsonify({"ok": False, "error": "No se recibio archivo"})
+        ruta_excel = os.path.join(os.path.dirname(__file__), "VentasNetas.xlsx")
+        archivo.save(ruta_excel)
+        script = os.path.join(os.path.dirname(__file__), "procesar_ventas.py")
+        resultado = subprocess.run([sys.executable, script],
+                                   capture_output=True, text=True, timeout=300)
+        if resultado.returncode != 0:
+            return jsonify({"ok": False, "error": resultado.stderr or "Error al procesar"})
+        return jsonify({"ok": True})
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": False, "error": "Tiempo de espera agotado (5 min)"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/proveedores/lista")
+def api_proveedores_lista():
+    conn = get_connection()
+    cur  = conn.cursor()
+    cur.execute("""
+        SELECT
+            RTRIM(co_prov) AS codigo,
+            RTRIM(prov_des) AS nombre
+        FROM saProveedor
+        WHERE inactivo = 0
+        ORDER BY RTRIM(prov_des)
+    """)
+    rows = [dict(zip([d[0] for d in cur.description], r)) for r in cur.fetchall()]
+    cur.close(); conn.close()
+    return jsonify(rows)
+
+
+@app.route("/api/stock")
+def api_stock():
+    co_prov = request.args.get("co_prov", "").strip()
+    conn = get_connection()
+    cur  = conn.cursor()
+
+    filtro_prov = ""
+    params = []
+    if co_prov:
+        filtro_prov = """
+            AND (
+                SELECT STRING_AGG(CAST(P.co_prov AS VARCHAR(10)), ',')
+                FROM saProveedor P
+                INNER JOIN saArtProveedorReng Pr ON P.co_prov = Pr.co_prov AND Pr.co_art = A.co_art
+                WHERE P.inactivo = 0
+            ) BETWEEN ? AND ?
+        """
+        params.append(co_prov)
+        params.append(co_prov)
+
+    sql = """
+        SELECT
+            RTRIM(LEFT(s.co_alma, 2))       AS sucursal,
+            RTRIM(s.co_art)                 AS sku,
+            RTRIM(a.art_des)                AS descripcion,
+            SUM(CASE WHEN RTRIM(s.tipo) = 'ACT' THEN s.stock ELSE 0 END) AS existencia,
+            SUM(CASE WHEN RTRIM(s.tipo) = 'LLE' THEN s.stock ELSE 0 END) AS transito,
+            0                               AS comprometido,
+            MAX(ROUND(dbo.AgpConsultarCostoxAlmacenxFecha(
+                A.co_art, s.co_alma, GETDATE(), 'UND', '7', 'USD', 1
+            ), 2))                          AS costo
+        FROM dbo.saStockAlmacen s
+        LEFT JOIN saArticulo a ON RTRIM(s.co_art) = RTRIM(a.co_art)
+        WHERE RTRIM(s.co_alma) != '9999'
+        AND s.stock > 0
+    """ + filtro_prov + """
+        GROUP BY s.co_alma, s.co_art, a.art_des
+        ORDER BY RTRIM(LEFT(s.co_alma, 2)), RTRIM(s.co_art)
+    """
+
+    cur.execute(sql, params)
+    rows = []
+    for r in cur.fetchall():
+        suc, sku, desc, exist, trans, comp, costo = r
+        desc_clean = (desc or "").split("*")[0].strip()
+        costo_f    = float(costo) if costo else 0.0
+        exist_f    = float(exist)
+        stock_disp = exist_f - float(comp)
+        costo_inv  = round(costo_f * exist_f, 2)
+        rows.append({
+            "sucursal":     suc,
+            "sku":          sku,
+            "descripcion":  desc_clean,
+            "existencia":   exist_f,
+            "transito":     float(trans),
+            "comprometido": float(comp),
+            "stock_disp":   stock_disp,
+            "costo":        costo_f,
+            "costo_inv":    costo_inv,
+        })
+    cur.close(); conn.close()
+    return jsonify(rows)
+
+
+@app.route("/api/stock/cargar-externo", methods=["POST"])
+def api_stock_cargar_externo():
+    import subprocess, sys
+    try:
+        archivo = request.files.get("archivo")
+        if not archivo:
+            return jsonify({"ok": False, "error": "No se recibio archivo"})
+        ruta = os.path.join(os.path.dirname(__file__), "StockExterno.xlsx")
+        archivo.save(ruta)
+        script = os.path.join(os.path.dirname(__file__), "procesar_stock_ext.py")
+        resultado = subprocess.run([sys.executable, script],
+                                   capture_output=True, text=True, timeout=120)
+        if resultado.returncode != 0:
+            return jsonify({"ok": False, "error": resultado.stderr or "Error al procesar"})
+        return jsonify({"ok": True})
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": False, "error": "Tiempo de espera agotado"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+@app.route("/api/stock/externo")
+def api_stock_externo():
+    import json as _json
+    cache = os.path.join(os.path.dirname(__file__), "stock_externo_cache.json")
+    if not os.path.exists(cache):
+        return jsonify({"ok": False, "registros": [], "fecha": None})
+    with open(cache, encoding="utf-8") as f:
+        data = _json.load(f)
+    return jsonify({"ok": True, "registros": data["registros"], "fecha": data["fecha"]})
+
+# -- API Rotacion
+def _rotacion_ventas_por_sku_sucursal():
+    cache = os.path.join(os.path.dirname(__file__), "ventas_cache.json")
+    if not os.path.exists(cache):
+        return {}, [], None
+    with open(cache, encoding="utf-8") as f:
+        data = json.load(f)
+    meses = sorted(set(r["anio_mes"] for r in data["registros"]))[-MESES_HISTORIAL:]
+    mapa = {}
+    for r in data["registros"]:
+        if r["anio_mes"] not in meses:
+            continue
+        k = (r["sku"], r["sucursal"])
+        mapa.setdefault(k, {})
+        mapa[k][r["anio_mes"]] = mapa[k].get(r["anio_mes"], 0) + r["unidades_vendidas"]
+    return mapa, meses, data["periodo"]
+
+
+def _rotacion_stock_actual():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT
+            RTRIM(LEFT(s.co_alma, 2)) AS sucursal,
+            RTRIM(s.co_art)           AS sku,
+            SUM(CASE WHEN RTRIM(s.tipo) = 'ACT' THEN s.stock ELSE 0 END) AS existencia,
+            MAX(ROUND(dbo.AgpConsultarCostoxAlmacenxFecha(
+                s.co_art, s.co_alma, GETDATE(), 'UND', '7', 'USD', 1
+            ), 2)) AS costo
+        FROM dbo.saStockAlmacen s
+        WHERE RTRIM(s.co_alma) != '9999' AND s.stock > 0
+        GROUP BY s.co_alma, s.co_art
+    """)
+    mapa = {}
+    for suc, sku, exist, costo in cur.fetchall():
+        mapa[(sku, suc)] = {"existencia": float(exist), "costo": float(costo) if costo else 0.0}
+    cur.close(); conn.close()
+
+    cache = os.path.join(os.path.dirname(__file__), "stock_externo_cache.json")
+    if os.path.exists(cache):
+        with open(cache, encoding="utf-8") as f:
+            ext = json.load(f)
+        for r in ext["registros"]:
+            k = (r["sku"], r["sucursal"])
+            if k in mapa:
+                mapa[k]["existencia"] += r["existencia"]
+                if not mapa[k]["costo"]:
+                    mapa[k]["costo"] = r["costo"]
+            else:
+                mapa[k] = {"existencia": r["existencia"], "costo": r["costo"]}
+    return mapa
+
+
+def _rotacion_maestro():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT
+            RTRIM(a.co_art) AS sku,
+            RTRIM(a.art_des) AS descripcion,
+            ISNULL(RTRIM(cat.cat_des), '') AS categoria,
+            ISNULL(RTRIM(pr.co_prov), '') AS co_prov,
+            ISNULL(RTRIM(pr.prov_des), '') AS proveedor
+        FROM saArticulo a
+        LEFT JOIN saCatArticulo cat ON RTRIM(a.co_cat) = RTRIM(cat.co_cat)
+        OUTER APPLY (
+            SELECT TOP 1 p.co_prov, p.prov_des
+            FROM saArtProveedorReng apr
+            JOIN saProveedor p ON p.co_prov = apr.co_prov
+            WHERE apr.co_art = a.co_art AND p.inactivo = 0
+        ) pr
+        WHERE a.anulado = 0
+    """)
+    mapa = {}
+    for sku, desc, cat, co_prov, prov in cur.fetchall():
+        mapa[sku] = {
+            "descripcion": (desc or "").split("*")[0].strip(),
+            "categoria": cat, "co_prov": co_prov, "proveedor": prov,
+        }
+    cur.close(); conn.close()
+    return mapa
+
+
+def _rotacion_diagnostico(ventas_6m, stock, rotacion):
+    if ventas_6m == 0:
+        return "Sin movimiento"
+    if stock == 0:
+        return "Quiebre - con demanda"
+    if rotacion >= 12:
+        return "Excelente rotacion (>12x)"
+    if rotacion >= 6:
+        return "Buena rotacion (6-12x)"
+    if rotacion >= 3:
+        return "Rotacion aceptable (3-6x)"
+    if rotacion >= 1:
+        return "Rotacion lenta (1-3x)"
+    return "Stock muerto (<1x)"
+
+
+ESTRATEGIAS_ABC_XYZ = {
+    "AX": "Critico estable - JIT, alta rotacion",
+    "AY": "Critico variable - Stock de seguridad alto",
+    "AZ": "Critico erratico - Investigar demanda",
+    "BX": "Medio estable - Cobertura estandar",
+    "BY": "Medio variable - Cobertura ampliada",
+    "BZ": "Medio erratico - Stock conservador",
+    "CX": "Bajo estable - Reducir inventario",
+    "CY": "Bajo variable - Stock minimo",
+    "CZ": "Bajo erratico - Discontinuar",
+}
+
+
+@app.route("/api/rotacion")
+def api_rotacion():
+    co_prov = request.args.get("co_prov", "").strip()
+
+    ventas_mapa, meses, periodo = _rotacion_ventas_por_sku_sucursal()
+    if not meses:
+        return jsonify({"ok": False, "error": "Cache de ventas no encontrado. Ejecuta procesar_ventas.py primero."})
+    stock_mapa = _rotacion_stock_actual()
+    maestro = _rotacion_maestro()
+
+    claves = set(ventas_mapa.keys()) | set(stock_mapa.keys())
+
+    detalle = []
+    for sku, suc in claves:
+        info = maestro.get(sku, {"descripcion": "", "categoria": "", "co_prov": "", "proveedor": ""})
+        if co_prov and info["co_prov"] != co_prov:
+            continue
+
+        valores = [ventas_mapa.get((sku, suc), {}).get(m, 0) for m in meses]
+        ventas_6m = sum(valores)
+        promedio = ventas_6m / len(meses)
+        desvest = statistics.pstdev(valores)
+        cv = round(desvest / promedio, 4) if promedio > 0 else 0.0
+        meses_con_venta = sum(1 for v in valores if v > 0)
+
+        stock_info = stock_mapa.get((sku, suc), {"existencia": 0.0, "costo": 0.0})
+        stock_actual = stock_info["existencia"]
+        costo_unit = stock_info["costo"]
+
+        ventas_anual = ventas_6m * 2
+        valor_venta = round(ventas_anual * costo_unit, 2)
+
+        if stock_actual == 0:
+            rotacion = 999 if ventas_anual > 0 else 0
+        else:
+            rotacion = round(ventas_anual / stock_actual, 2)
+        doh = 0 if rotacion == 0 else (1 if rotacion >= 999 else round(365 / rotacion))
+        xyz = "-" if ventas_6m == 0 else ("X" if cv < 0.5 else ("Y" if cv < 1 else "Z"))
+
+        detalle.append({
+            "sku": sku,
+            "descripcion": info["descripcion"],
+            "categoria": info["categoria"],
+            "proveedor": info["proveedor"],
+            "co_prov": info["co_prov"],
+            "sucursal": suc,
+            "costo_unit": costo_unit,
+            "ventas_6m": ventas_6m,
+            "ventas_anual": ventas_anual,
+            "valor_venta": valor_venta,
+            "stock_actual": stock_actual,
+            "rotacion": rotacion,
+            "doh": doh,
+            "cv": cv,
+            "meses_con_venta": meses_con_venta,
+            "xyz": xyz,
+            "diagnostico": _rotacion_diagnostico(ventas_6m, stock_actual, rotacion),
+        })
+
+    # -- Consolidado por SKU (todas las sucursales)
+    por_sku = {}
+    for d in detalle:
+        acc = por_sku.setdefault(d["sku"], {
+            "sku": d["sku"], "descripcion": d["descripcion"], "categoria": d["categoria"],
+            "proveedor": d["proveedor"], "co_prov": d["co_prov"],
+            "ventas_6m": 0, "ventas_anual": 0, "valor_venta": 0.0,
+            "stock_total": 0.0, "costo_x_stock": 0.0, "cv_lista": [],
+        })
+        acc["ventas_6m"] += d["ventas_6m"]
+        acc["ventas_anual"] += d["ventas_anual"]
+        acc["valor_venta"] += d["valor_venta"]
+        acc["stock_total"] += d["stock_actual"]
+        acc["costo_x_stock"] += d["costo_unit"] * d["stock_actual"]
+        if d["ventas_6m"] > 0:
+            acc["cv_lista"].append(d["cv"])
+
+    consolidado = []
+    for acc in por_sku.values():
+        stock_total = acc["stock_total"]
+        ventas_anual = acc["ventas_anual"]
+        valor_venta = round(acc["valor_venta"], 2)
+        costo_unit = round(acc["costo_x_stock"] / stock_total, 4) if stock_total > 0 else 0.0
+
+        if stock_total == 0:
+            rotacion = 999 if ventas_anual > 0 else 0
+        else:
+            rotacion = round(ventas_anual / stock_total, 2)
+        doh = 0 if rotacion == 0 else (1 if rotacion >= 999 else round(365 / rotacion))
+        cv_prom = round(sum(acc["cv_lista"]) / len(acc["cv_lista"]), 4) if acc["cv_lista"] else 0.0
+        xyz = "-" if acc["ventas_6m"] == 0 else ("X" if cv_prom < 0.5 else ("Y" if cv_prom < 1 else "Z"))
+
+        consolidado.append({
+            "sku": acc["sku"], "descripcion": acc["descripcion"], "categoria": acc["categoria"],
+            "proveedor": acc["proveedor"], "co_prov": acc["co_prov"],
+            "ventas_6m": acc["ventas_6m"], "ventas_anual": ventas_anual, "valor_venta": valor_venta,
+            "stock_total": stock_total, "costo_unit": costo_unit,
+            "rotacion": rotacion, "doh": doh, "cv_promedio": cv_prom, "xyz": xyz,
+        })
+
+    total_valor = sum(c["valor_venta"] for c in consolidado)
+    consolidado.sort(key=lambda c: c["valor_venta"], reverse=True)
+    acumulado = 0.0
+    for c in consolidado:
+        acumulado += c["valor_venta"]
+        pct_acum = acumulado / total_valor if total_valor > 0 else 0.0
+        if c["valor_venta"] == 0:
+            abc = "-"
+        elif pct_acum <= 0.8:
+            abc = "A"
+        elif pct_acum <= 0.95:
+            abc = "B"
+        else:
+            abc = "C"
+        c["pct_acum"] = round(pct_acum, 4)
+        c["abc"] = abc
+        matriz = "-" if (abc == "-" or c["xyz"] == "-") else abc + c["xyz"]
+        c["matriz"] = matriz
+        c["estrategia"] = ESTRATEGIAS_ABC_XYZ.get(
+            matriz, "Sin movimiento - Evaluar discontinuar" if matriz == "-" else "Sin clasificar"
+        )
+
+    return jsonify({
+        "ok": True,
+        "meses_historial": meses,
+        "periodo": periodo,
+        "detalle": detalle,
+        "consolidado": consolidado,
+    })
+
+
+
+@app.route("/api/minmax")
+def api_minmax():
+    import json as _json, math
+    from datetime import datetime, timedelta
+
+    co_prov  = request.args.get("co_prov", "").strip()
+    meses    = request.args.get("meses", "0")   # 0 = todos
+    cobertura = float(request.args.get("cobertura", "30"))
+
+    # Parametros Factor Z
+    fz = {
+        "X": float(request.args.get("fz_x", "2.05")),
+        "Y": float(request.args.get("fz_y", "1.65")),
+        "Z": float(request.args.get("fz_z", "1.28")),
+        "-": float(request.args.get("fz_n", "0")),
+    }
+
+    # Lead times por region
+    lt = {
+        "ANDINO":           float(request.args.get("lt_andino",   "30")),
+        "LLANERO":          float(request.args.get("lt_llanero",  "45")),
+        "CENTRO-OCCIDENTE": float(request.args.get("lt_centro",   "35")),
+        "ORIENTE":          float(request.args.get("lt_oriente",  "60")),
+    }
+
+    # Leer cache de ventas
+    cache = os.path.join(os.path.dirname(__file__), "ventas_cache.json")
+    if not os.path.exists(cache):
+        return jsonify({"error": "Cache de ventas no encontrado"}), 400
+    with open(cache, encoding="utf-8") as f:
+        ventas_data = _json.load(f)["registros"]
+
+    # Filtrar por periodo
+    meses_int = int(meses)
+    if meses_int > 0:
+        # Tomar meses desde el ultimo disponible en cache, no desde hoy
+        todos_meses = sorted(set(v["anio_mes"] for v in ventas_data))
+        if len(todos_meses) >= meses_int:
+            anio_mes_corte = todos_meses[-meses_int]
+        elif todos_meses:
+            anio_mes_corte = todos_meses[0]
+        else:
+            anio_mes_corte = "2000-01"
+        ventas_data = [v for v in ventas_data if v["anio_mes"] >= anio_mes_corte]
+
+    # Filtrar por proveedor
+    if co_prov:
+        ventas_data = [v for v in ventas_data if v.get("co_prov") == co_prov]
+
+    # Calcular dias del periodo
+    if meses_int > 0:
+        dias_periodo = meses_int * 30
+    else:
+        meses_unicos = set(v["anio_mes"] for v in ventas_data)
+        dias_periodo = max(len(meses_unicos) * 30, 1)
+
+    # Agrupar ventas por SKU+Sucursal: lista de unidades mensuales
+    from collections import defaultdict
+    ventas_por_sku_suc = defaultdict(list)
+    meses_por_sku_suc  = defaultdict(set)
+    desc_por_sku       = {}
+    prov_por_sku       = {}
+
+    for v in ventas_data:
+        k = (v["sku"], v["sucursal"])
+        ventas_por_sku_suc[k].append(v["unidades_vendidas"])
+        meses_por_sku_suc[k].add(v["anio_mes"])
+        desc_por_sku[v["sku"]]  = v["descripcion"]
+        prov_por_sku[v["sku"]]  = v.get("co_prov", "")
+
+    # Leer stock actual desde BD
+    conn = get_connection()
+    cur  = conn.cursor()
+
+    filtro_prov_sql = ""
+    params = []
+    if co_prov:
+        filtro_prov_sql = """
+            AND (
+                SELECT STRING_AGG(CAST(P.co_prov AS VARCHAR(10)), ',')
+                FROM saProveedor P
+                INNER JOIN saArtProveedorReng Pr ON P.co_prov = Pr.co_prov AND Pr.co_art = A.co_art
+                WHERE P.inactivo = 0
+            ) BETWEEN ? AND ?
+        """
+        params.extend([co_prov, co_prov])
+
+    cur.execute("""
+        SELECT
+            RTRIM(LEFT(s.co_alma, 2))  AS sucursal,
+            RTRIM(s.co_art)            AS sku,
+            RTRIM(a.art_des)           AS descripcion,
+            ISNULL(RTRIM(su.campo2), '') AS region,
+            SUM(CASE WHEN RTRIM(s.tipo) = 'ACT' THEN s.stock ELSE 0 END) AS stock_act
+        FROM saStockAlmacen s
+        LEFT JOIN saArticulo a  ON RTRIM(s.co_art)   = RTRIM(a.co_art)
+        LEFT JOIN saSucursal su ON RTRIM(LEFT(s.co_alma,2)) = RTRIM(su.co_sucur)
+        WHERE RTRIM(s.co_alma) != '9999'
+    """ + filtro_prov_sql + """
+        GROUP BY s.co_alma, s.co_art, a.art_des, su.campo2
+        ORDER BY RTRIM(LEFT(s.co_alma,2)), RTRIM(s.co_art)
+    """, params)
+
+    stock_rows = cur.fetchall()
+    cur.close(); conn.close()
+
+    # Mapa region por sucursal desde BD
+    region_suc = {}
+    for row in stock_rows:
+        region_suc[row[0]] = row[3]
+
+    # Calcular clasificacion XYZ por SKU+Sucursal
+    def clasificar_xyz(ventas_lista):
+        if not ventas_lista or sum(ventas_lista) == 0:
+            return "-"
+        mean = sum(ventas_lista) / len(ventas_lista)
+        if mean == 0:
+            return "-"
+        variance = sum((x - mean) ** 2 for x in ventas_lista) / len(ventas_lista)
+        cv = math.sqrt(variance) / mean
+        if cv <= 0.5:   return "X"
+        elif cv <= 1.0: return "Y"
+        else:           return "Z"
+
+    # Construir resultado
+    resultado = []
+    skus_procesados = set()
+
+    for row in stock_rows:
+        suc, sku, desc_bd, region, stock_act = row
+        stock_act = float(stock_act)
+        desc = desc_por_sku.get(sku, (desc_bd or "").split("*")[0].strip())
+        region = region or "CENTRO-OCCIDENTE"
+        lead_time = lt.get(region.upper(), 35)
+
+        k = (sku, suc)
+        ventas_lista = ventas_por_sku_suc.get(k, [])
+        total_vendido = sum(ventas_lista)
+
+        # PVD y desviacion
+        pvd    = total_vendido / dias_periodo if dias_periodo > 0 else 0
+        if len(ventas_lista) > 1:
+            mean   = sum(ventas_lista) / len(ventas_lista)
+            var    = sum((x - mean) ** 2 for x in ventas_lista) / len(ventas_lista)
+            desv_m = math.sqrt(var)
+            desv_d = desv_m / 30
+        else:
+            desv_d = 0
+
+        clasif = clasificar_xyz(ventas_lista)
+        z      = fz.get(clasif, 0)
+        ss     = round(z * desv_d * math.sqrt(lead_time), 2)
+        p_min  = round(pvd * lead_time + ss, 2)
+        p_max  = round(p_min + pvd * cobertura, 2)
+        sugerencia = round(max(0, p_min - stock_act), 2)
+
+        if total_vendido == 0 and stock_act == 0:
+            estado = "SIN_STOCK_SIN_VENTA"
+        elif total_vendido == 0:
+            estado = "SIN_VENTA"
+        elif stock_act == 0:
+            estado = "SIN_STOCK"
+        elif stock_act < p_min:
+            estado = "CRITICO"
+        elif stock_act > p_max:
+            estado = "EXCESO"
+        else:
+            estado = "OPTIMO"
+
+        resultado.append({
+            "sku":        sku,
+            "descripcion": desc,
+            "co_prov":    prov_por_sku.get(sku, ""),
+            "sucursal":   suc,
+            "region":     region,
+            "lead_time":  lead_time,
+            "pvd":        round(pvd, 4),
+            "desv_diaria": round(desv_d, 4),
+            "clasif":     clasif,
+            "factor_z":   z,
+            "stock_seg":  ss,
+            "cobertura":  cobertura,
+            "punto_min":  p_min,
+            "punto_max":  p_max,
+            "stock_act":  stock_act,
+            "sugerencia": sugerencia,
+            "estado":     estado,
+        })
+        skus_procesados.add(k)
+
+    # Agregar SKUs con ventas pero sin stock
+    for (sku, suc), ventas_lista in ventas_por_sku_suc.items():
+        if (sku, suc) in skus_procesados:
+            continue
+        total_vendido = sum(ventas_lista)
+        if total_vendido == 0:
+            continue
+        region = region_suc.get(suc, "CENTRO-OCCIDENTE")
+        lead_time = lt.get(region.upper(), 35)
+        pvd = total_vendido / dias_periodo if dias_periodo > 0 else 0
+        if len(ventas_lista) > 1:
+            mean  = sum(ventas_lista) / len(ventas_lista)
+            var   = sum((x - mean) ** 2 for x in ventas_lista) / len(ventas_lista)
+            desv_d = math.sqrt(var) / 30
+        else:
+            desv_d = 0
+        clasif = clasificar_xyz(ventas_lista)
+        z      = fz.get(clasif, 0)
+        ss     = round(z * desv_d * math.sqrt(lead_time), 2)
+        p_min  = round(pvd * lead_time + ss, 2)
+        p_max  = round(p_min + pvd * cobertura, 2)
+
+        resultado.append({
+            "sku":        sku,
+            "descripcion": desc_por_sku.get(sku, sku),
+            "co_prov":    prov_por_sku.get(sku, ""),
+            "sucursal":   suc,
+            "region":     region,
+            "lead_time":  lead_time,
+            "pvd":        round(pvd, 4),
+            "desv_diaria": round(desv_d, 4),
+            "clasif":     clasif,
+            "factor_z":   z,
+            "stock_seg":  ss,
+            "cobertura":  cobertura,
+            "punto_min":  p_min,
+            "punto_max":  p_max,
+            "stock_act":  0,
+            "sugerencia": round(p_min, 2),
+            "estado":     "SIN_STOCK",
+        })
+
+    return jsonify(resultado)
+
+
+@app.route("/api/balanceo", methods=["POST"])
+def api_balanceo():
+    import json as _json, math
+
+    datos = request.get_json()
+    minmax_data  = datos.get("minmax", [])   # resultado del calculo minmax
+    co_prov      = datos.get("co_prov", "")
+
+    if not minmax_data:
+        return jsonify({"error": "No hay datos de Min-Max. Calcule primero."}), 400
+
+    # Matriz de distancia logistica
+    DISTANCIA = {
+        ("ANDINO",           "ANDINO"):           "verde",
+        ("ANDINO",           "LLANERO"):          "amarillo",
+        ("ANDINO",           "CENTRO-OCCIDENTE"): "amarillo",
+        ("ANDINO",           "ORIENTE"):          "rojo",
+        ("LLANERO",          "ANDINO"):           "amarillo",
+        ("LLANERO",          "LLANERO"):          "verde",
+        ("LLANERO",          "CENTRO-OCCIDENTE"): "amarillo",
+        ("LLANERO",          "ORIENTE"):          "amarillo",
+        ("CENTRO-OCCIDENTE", "ANDINO"):           "amarillo",
+        ("CENTRO-OCCIDENTE", "LLANERO"):          "amarillo",
+        ("CENTRO-OCCIDENTE", "CENTRO-OCCIDENTE"): "verde",
+        ("CENTRO-OCCIDENTE", "ORIENTE"):          "rojo",
+        ("ORIENTE",          "ANDINO"):           "rojo",
+        ("ORIENTE",          "LLANERO"):          "amarillo",
+        ("ORIENTE",          "CENTRO-OCCIDENTE"): "rojo",
+        ("ORIENTE",          "ORIENTE"):          "verde",
+    }
+
+    # Separar deficitarios y con exceso
+    # deficitario: stock_act < punto_min
+    # exceso: stock_act > punto_max
+    deficitarios = [d for d in minmax_data if d["stock_act"] < d["punto_min"] and d["punto_min"] > 0]
+    con_exceso   = {(d["sku"], d["sucursal"]): d.copy() for d in minmax_data if d["stock_act"] > d["punto_max"]}
+
+    # Para cada deficitario buscar mejor origen
+    resultado = []
+    exceso_disponible = {k: v["stock_act"] - v["punto_max"] for k, v in con_exceso.items()}
+
+    for dest in deficitarios:
+        sku         = dest["sku"]
+        suc_dest    = dest["sucursal"]
+        reg_dest    = (dest["region"] or "").upper()
+        stock_dest  = dest["stock_act"]
+        punto_min   = dest["punto_min"]
+        necesidad   = round(punto_min - stock_dest, 2)
+
+        # Buscar origenes con exceso para este SKU ordenados por distancia
+        origenes = []
+        for (k_sku, k_suc), exceso in exceso_disponible.items():
+            if k_sku != sku: continue
+            if exceso <= 0:  continue
+            reg_orig = (con_exceso[(k_sku, k_suc)]["region"] or "").upper()
+            dist     = DISTANCIA.get((reg_orig, reg_dest), "rojo")
+            prioridad = {"verde": 0, "amarillo": 1, "rojo": 2}[dist]
+            origenes.append((prioridad, dist, k_suc, reg_orig, exceso))
+
+        origenes.sort(key=lambda x: x[0])
+
+        if origenes:
+            prioridad, dist, suc_orig, reg_orig, exceso_orig = origenes[0]
+            a_trasladar = round(min(necesidad, exceso_orig), 2)
+            a_comprar   = round(max(0, necesidad - a_trasladar), 2)
+            # Descontar del exceso disponible
+            exceso_disponible[(sku, suc_orig)] -= a_trasladar
+            if dist == "rojo" and a_comprar == 0:
+                accion = "TRASLADAR (lejano)"
+            elif a_trasladar > 0 and a_comprar > 0:
+                accion = "TRASLADAR + COMPRAR"
+            elif a_trasladar > 0:
+                accion = "TRASLADAR"
+            else:
+                accion = "COMPRAR"
+        else:
+            suc_orig    = "Sin origen"
+            reg_orig    = ""
+            dist        = ""
+            a_trasladar = 0
+            a_comprar   = round(necesidad, 2)
+            accion      = "COMPRAR"
+
+        resultado.append({
+            "sku":          sku,
+            "descripcion":  dest["descripcion"],
+            "co_prov":      dest.get("co_prov", ""),
+            "suc_destino":  suc_dest,
+            "reg_destino":  reg_dest,
+            "stock_dest":   stock_dest,
+            "punto_min":    punto_min,
+            "punto_max":    dest["punto_max"],
+            "necesidad":    necesidad,
+            "suc_origen":   suc_orig,
+            "reg_origen":   reg_orig,
+            "distancia":    dist,
+            "a_trasladar":  a_trasladar,
+            "a_comprar":    a_comprar,
+            "accion":       accion,
+        })
+
+    # Resumen
+    total_deficit   = len(resultado)
+    total_trasladar = round(sum(r["a_trasladar"] for r in resultado), 2)
+    total_comprar   = round(sum(r["a_comprar"]   for r in resultado), 2)
+    total_necesidad = round(sum(r["necesidad"]   for r in resultado), 2)
+    pct_balanceo    = round(total_trasladar / total_necesidad, 4) if total_necesidad > 0 else 0
+    traslados_verde    = sum(1 for r in resultado if r["distancia"] == "verde")
+    traslados_amarillo = sum(1 for r in resultado if r["distancia"] == "amarillo")
+    traslados_rojo     = sum(1 for r in resultado if r["distancia"] == "rojo")
+
+    return jsonify({
+        "resumen": {
+            "total_deficit":      total_deficit,
+            "total_trasladar":    total_trasladar,
+            "total_comprar":      total_comprar,
+            "total_necesidad":    total_necesidad,
+            "pct_balanceo":       pct_balanceo,
+            "traslados_verde":    traslados_verde,
+            "traslados_amarillo": traslados_amarillo,
+            "traslados_rojo":     traslados_rojo,
+        },
+        "detalle": resultado
+    })
+
+
+@app.route("/matriz")
+def matriz():
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    return render_template("matriz.html", now=now)
+
+@app.route("/api/matriz")
+def api_matriz():
+    import json as _json
+
+    co_prov   = request.args.get("co_prov", "").strip()
+    meses     = int(request.args.get("meses", "0"))
+    sucursales_f = request.args.get("sucursales", "").strip()
+    vendedores_f = request.args.get("vendedores", "").strip()
+    desde_f   = request.args.get("desde", "").strip()
+    hasta_f   = request.args.get("hasta", "").strip()
+
+    cache = os.path.join(os.path.dirname(__file__), "ventas_cache.json")
+    if not os.path.exists(cache):
+        return jsonify({"error": "Cache de ventas no encontrado"}), 400
+    with open(cache, encoding="utf-8") as f:
+        registros = _json.load(f)["registros"]
+
+    # Filtrar por rango de fecha explicito (tiene prioridad sobre "meses")
+    if desde_f:
+        registros = [r for r in registros if r["anio_mes"] >= desde_f]
+    if hasta_f:
+        registros = [r for r in registros if r["anio_mes"] <= hasta_f]
+
+    # Filtrar por periodo desde el ultimo mes disponible en cache (solo si no hay rango explicito)
+    if not desde_f and not hasta_f and meses > 0:
+        todos_meses = sorted(set(r["anio_mes"] for r in registros))
+        if len(todos_meses) >= meses:
+            anio_mes_corte = todos_meses[-meses]
+        elif todos_meses:
+            anio_mes_corte = todos_meses[0]
+        else:
+            anio_mes_corte = "2000-01"
+        registros = [r for r in registros if r["anio_mes"] >= anio_mes_corte]
+
+    # Filtrar por proveedor
+    if co_prov:
+        registros = [r for r in registros if r.get("co_prov") == co_prov]
+
+    # Filtrar por sucursales (lista separada por coma)
+    if sucursales_f:
+        sucs_permitidas = set(sucursales_f.split(","))
+        registros = [r for r in registros if r["sucursal"] in sucs_permitidas]
+
+    # Filtrar por vendedores (lista separada por coma)
+    if vendedores_f:
+        vens_permitidos = set(vendedores_f.split(","))
+        registros = [r for r in registros if r.get("vendedor") in vens_permitidos]
+
+    # Obtener TODAS las sucursales desde la BD (no solo las que tienen ventas)
+    conn = get_connection()
+    cur  = conn.cursor()
+    cur.execute("SELECT RTRIM(co_sucur) FROM saSucursal ORDER BY co_sucur")
+    sucursales = [r[0] for r in cur.fetchall()]
+    cur.close(); conn.close()
+
+    meses_list = sorted(set(r["anio_mes"] for r in registros))
+
+    # Construir matriz: {sku: {desc, co_prov, por_suc: {suc: {mes: unidades}}}}
+    from collections import defaultdict
+    matriz = defaultdict(lambda: {"descripcion": "", "co_prov": "", "por_suc": defaultdict(lambda: defaultdict(float))})
+
+    for r in registros:
+        sku  = r["sku"]
+        suc  = r["sucursal"]
+        mes  = r["anio_mes"]
+        uv   = r["unidades_vendidas"]
+        matriz[sku]["descripcion"] = r["descripcion"]
+        matriz[sku]["co_prov"]     = r.get("co_prov", "")
+        matriz[sku]["por_suc"][suc][mes] += uv
+
+    # Serializar
+    filas = []
+    for sku, data in sorted(matriz.items()):
+        fila = {
+            "sku":        sku,
+            "descripcion": data["descripcion"],
+            "co_prov":    data["co_prov"],
+            "sucursales": {}
+        }
+        total_sku = 0
+        for suc in sucursales:
+            meses_suc = data["por_suc"].get(suc, {})
+            por_mes   = {m: int(meses_suc.get(m, 0)) for m in meses_list}
+            total_suc = sum(por_mes.values())
+            fila["sucursales"][suc] = {"meses": por_mes, "total": total_suc}
+            total_sku += total_suc
+        fila["total_sku"] = total_sku
+        fila["prom_mes"]  = round(total_sku / len(meses_list), 1) if meses_list else 0
+        filas.append(fila)
+
+    return jsonify({
+        "sucursales": sucursales,
+        "meses":      meses_list,
+        "filas":      filas,
+    })
+
+
+@app.route("/estadisticas")
+def estadisticas():
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    return render_template("estadisticas.html", now=now)
+
+@app.route("/api/estadisticas")
+def api_estadisticas():
+    import json as _json, math
+    from collections import defaultdict
+
+    co_prov = request.args.get("co_prov", "").strip()
+    meses   = int(request.args.get("meses", "0"))
+
+    cache = os.path.join(os.path.dirname(__file__), "ventas_cache.json")
+    if not os.path.exists(cache):
+        return jsonify({"error": "Cache de ventas no encontrado"}), 400
+    with open(cache, encoding="utf-8") as f:
+        registros = _json.load(f)["registros"]
+
+    if co_prov:
+        registros = [r for r in registros if r.get("co_prov") == co_prov]
+
+    if meses > 0:
+        todos_meses = sorted(set(r["anio_mes"] for r in registros))
+        anio_mes_corte = todos_meses[-meses] if len(todos_meses) >= meses else (todos_meses[0] if todos_meses else "2000-01")
+        registros = [r for r in registros if r["anio_mes"] >= anio_mes_corte]
+
+    meses_disponibles = sorted(set(r["anio_mes"] for r in registros))
+    n_meses = len(meses_disponibles)
+
+    grupos = defaultdict(lambda: {"desc": "", "co_prov": "", "meses": defaultdict(float)})
+    for r in registros:
+        k = (r["sku"], r["sucursal"])
+        grupos[k]["desc"]    = r["descripcion"]
+        grupos[k]["co_prov"] = r.get("co_prov", "")
+        grupos[k]["meses"][r["anio_mes"]] += r["unidades_vendidas"]
+
+    resultado = []
+    for (sku, suc), data in sorted(grupos.items()):
+        ventas_por_mes = [data["meses"].get(m, 0) for m in meses_disponibles]
+        total = sum(ventas_por_mes)
+        meses_con_venta = sum(1 for v in ventas_por_mes if v > 0)
+        n = len(ventas_por_mes)
+        prom = total / n if n > 0 else 0
+        if n > 1 and prom > 0:
+            var  = sum((v - prom) ** 2 for v in ventas_por_mes) / n
+            desv = math.sqrt(var)
+            cv   = round(desv / prom, 4)
+        else:
+            desv = 0; cv = 0
+        pvd = round(prom / 30, 4) if prom > 0 else 0
+        if total == 0: clasif = "-"
+        elif cv <= 0.5: clasif = "X"
+        elif cv <= 1.0: clasif = "Y"
+        else: clasif = "Z"
+        if n >= 2:
+            mitad = n // 2
+            primera = sum(ventas_por_mes[:mitad]) / mitad if mitad > 0 else 0
+            segunda = sum(ventas_por_mes[mitad:]) / (n - mitad) if (n - mitad) > 0 else 0
+            if segunda > primera * 1.1: tendencia = "Subiendo"
+            elif segunda < primera * 0.9: tendencia = "Bajando"
+            else: tendencia = "Estable"
+        else:
+            tendencia = "-"
+        resultado.append({
+            "sku": sku, "descripcion": data["desc"], "co_prov": data["co_prov"],
+            "sucursal": suc, "total": int(total), "promedio": round(prom, 2),
+            "desv": round(desv, 2), "cv": round(cv, 4), "pvd": pvd,
+            "meses_con_venta": meses_con_venta, "clasif": clasif, "tendencia": tendencia,
+        })
+
+    return jsonify({"registros": resultado, "n_meses": n_meses, "meses": meses_disponibles})
+
+
+
+@app.route("/stock-matriz")
+def stock_matriz():
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    return render_template("stock_matriz.html", now=now)
+
+@app.route("/api/stock-matriz")
+def api_stock_matriz():
+    co_prov = request.args.get("co_prov", "").strip()
+    conn = get_connection()
+    cur  = conn.cursor()
+
+    filtro_prov = ""
+    params = []
+    if co_prov:
+        filtro_prov = """
+            AND (
+                SELECT STRING_AGG(CAST(P.co_prov AS VARCHAR(10)), \',\')
+                FROM saProveedor P
+                INNER JOIN saArtProveedorReng Pr ON P.co_prov = Pr.co_prov AND Pr.co_art = A.co_art
+                WHERE P.inactivo = 0
+            ) BETWEEN ? AND ?
+        """
+        params.extend([co_prov, co_prov])
+
+    sql = """
+        SELECT
+            RTRIM(LEFT(s.co_alma, 2))       AS sucursal,
+            RTRIM(s.co_art)                 AS sku,
+            RTRIM(a.art_des)                AS descripcion,
+            SUM(CASE WHEN RTRIM(s.tipo) = \'ACT\' THEN s.stock ELSE 0 END) AS existencia,
+            SUM(CASE WHEN RTRIM(s.tipo) = \'LLE\' THEN s.stock ELSE 0 END) AS transito
+        FROM dbo.saStockAlmacen s
+        LEFT JOIN saArticulo a ON RTRIM(s.co_art) = RTRIM(a.co_art)
+        WHERE RTRIM(s.co_alma) != \'9999\'
+        AND s.stock > 0
+    """ + filtro_prov + """
+        GROUP BY s.co_alma, s.co_art, a.art_des
+        ORDER BY RTRIM(s.co_art)
+    """
+
+    cur.execute(sql, params)
+    rows = cur.fetchall()
+    cur.close(); conn.close()
+
+    # Cargar stock externo si existe
+    externo_rows = []
+    cache_ext = os.path.join(os.path.dirname(__file__), "stock_externo_cache.json")
+    if os.path.exists(cache_ext):
+        import json as _json
+        with open(cache_ext, encoding="utf-8") as f:
+            data_ext = _json.load(f)
+        for r in data_ext.get("registros", []):
+            if co_prov and r.get("co_prov") != co_prov:
+                continue
+            externo_rows.append((r["sucursal"], r["sku"], r["descripcion"], r["existencia"], 0))
+
+    # Construir matriz SKU -> {suc: disponible}
+    from collections import defaultdict
+    matriz = defaultdict(lambda: {"descripcion": "", "por_suc": defaultdict(float)})
+
+    for suc, sku, desc, exist, trans in list(rows) + externo_rows:
+        desc_clean = (desc or "").split("*")[0].strip()
+        disponible = float(exist) + float(trans)
+        matriz[sku]["descripcion"] = desc_clean
+        matriz[sku]["por_suc"][suc] += disponible
+
+    # Siempre incluir TODAS las sucursales de la BD, tengan o no stock
+    conn2 = get_connection()
+    cur2  = conn2.cursor()
+    cur2.execute("SELECT RTRIM(co_sucur) FROM saSucursal ORDER BY co_sucur")
+    sucursales = [r[0] for r in cur2.fetchall()]
+    cur2.close(); conn2.close()
+
+    filas = []
+    for sku, data in sorted(matriz.items()):
+        por_suc = {s: round(data["por_suc"].get(s, 0), 0) for s in sucursales}
+        total   = sum(por_suc.values())
+        prom    = round(total / len(sucursales), 1) if sucursales else 0
+        filas.append({
+            "sku": sku,
+            "descripcion": data["descripcion"],
+            "sucursales": por_suc,
+            "total": total,
+            "promedio": prom,
+        })
+
+    return jsonify({"sucursales": sucursales, "filas": filas})
+
+
+
+@app.route("/stock-analisis")
+def stock_analisis():
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    return render_template("stock_analisis.html", now=now)
+
+@app.route("/api/stock-analisis")
+def api_stock_analisis():
+    import json as _json, math
+    from collections import defaultdict
+
+    co_prov   = request.args.get("co_prov", "").strip()
+    meses     = int(request.args.get("meses", "0"))
+    cob_min   = float(request.args.get("cob_min", "15"))
+    cob_max   = float(request.args.get("cob_max", "60"))
+
+    # ---- 1. Obtener stock disponible (reutiliza logica de /api/stock) ----
+    conn = get_connection()
+    cur  = conn.cursor()
+
+    filtro_prov = ""
+    params = []
+    if co_prov:
+        filtro_prov = """
+            AND (
+                SELECT STRING_AGG(CAST(P.co_prov AS VARCHAR(10)), \',\')
+                FROM saProveedor P
+                INNER JOIN saArtProveedorReng Pr ON P.co_prov = Pr.co_prov AND Pr.co_art = A.co_art
+                WHERE P.inactivo = 0
+            ) BETWEEN ? AND ?
+        """
+        params.extend([co_prov, co_prov])
+
+    cur.execute("""
+        SELECT
+            RTRIM(LEFT(s.co_alma, 2))  AS sucursal,
+            RTRIM(s.co_art)            AS sku,
+            RTRIM(a.art_des)           AS descripcion,
+            SUM(CASE WHEN RTRIM(s.tipo) = \'ACT\' THEN s.stock ELSE 0 END) AS existencia,
+            SUM(CASE WHEN RTRIM(s.tipo) = \'LLE\' THEN s.stock ELSE 0 END) AS transito
+        FROM saStockAlmacen s
+        LEFT JOIN saArticulo a ON RTRIM(s.co_art) = RTRIM(a.co_art)
+        WHERE RTRIM(s.co_alma) != \'9999\'
+        AND s.stock > 0
+    """ + filtro_prov + """
+        GROUP BY s.co_alma, s.co_art, a.art_des
+        ORDER BY RTRIM(LEFT(s.co_alma, 2)), RTRIM(s.co_art)
+    """, params)
+
+    stock_rows = cur.fetchall()
+    cur.close(); conn.close()
+
+    stock_por_sku_suc = {}
+    desc_por_sku = {}
+    for suc, sku, desc, exist, trans in stock_rows:
+        disp = float(exist) + float(trans)
+        stock_por_sku_suc[(sku, suc)] = disp
+        desc_por_sku[sku] = (desc or "").split("*")[0].strip()
+
+    # ---- 2. Obtener PVD desde cache de ventas ----
+    cache = os.path.join(os.path.dirname(__file__), "ventas_cache.json")
+    ventas_data = []
+    if os.path.exists(cache):
+        with open(cache, encoding="utf-8") as f:
+            ventas_data = _json.load(f)["registros"]
+        if co_prov:
+            ventas_data = [v for v in ventas_data if v.get("co_prov") == co_prov]
+        if meses > 0:
+            todos_meses = sorted(set(v["anio_mes"] for v in ventas_data))
+            corte = todos_meses[-meses] if len(todos_meses) >= meses else (todos_meses[0] if todos_meses else "2000-01")
+            ventas_data = [v for v in ventas_data if v["anio_mes"] >= corte]
+
+    meses_disponibles = sorted(set(v["anio_mes"] for v in ventas_data))
+    n_meses = len(meses_disponibles)
+
+    ventas_por_sku_suc = defaultdict(lambda: defaultdict(float))
+    prov_por_sku = {}
+    for v in ventas_data:
+        k = (v["sku"], v["sucursal"])
+        ventas_por_sku_suc[k][v["anio_mes"]] += v["unidades_vendidas"]
+        desc_por_sku[v["sku"]] = v["descripcion"]
+        prov_por_sku[v["sku"]] = v.get("co_prov", "")
+
+    # ---- 3. Combinar todas las combinaciones SKU-Sucursal ----
+    todas_keys = set(stock_por_sku_suc.keys()) | set(ventas_por_sku_suc.keys())
+
+    resultado = []
+    for (sku, suc) in todas_keys:
+        stock_disp = stock_por_sku_suc.get((sku, suc), 0)
+        ventas_mes = ventas_por_sku_suc.get((sku, suc), {})
+        ventas_lista = [ventas_mes.get(m, 0) for m in meses_disponibles]
+        total = sum(ventas_lista)
+        prom  = total / n_meses if n_meses > 0 else 0
+        pvd   = round(prom / 30, 4) if prom > 0 else 0
+
+        if n_meses > 1 and prom > 0:
+            var  = sum((v - prom) ** 2 for v in ventas_lista) / n_meses
+            desv = math.sqrt(var)
+            cv   = round(desv / prom, 4)
+        else:
+            cv = 0
+
+        if total == 0: clasif = "-"
+        elif cv <= 0.5: clasif = "X"
+        elif cv <= 1.0: clasif = "Y"
+        else: clasif = "Z"
+
+        if n_meses >= 2:
+            mitad = n_meses // 2
+            primera = sum(ventas_lista[:mitad]) / mitad if mitad > 0 else 0
+            segunda = sum(ventas_lista[mitad:]) / (n_meses - mitad) if (n_meses - mitad) > 0 else 0
+            if segunda > primera * 1.1: tendencia = "Subiendo"
+            elif segunda < primera * 0.9: tendencia = "Bajando"
+            else: tendencia = "Estable"
+        else:
+            tendencia = "-"
+
+        dias_cobertura = round(stock_disp / pvd, 1) if pvd > 0 else (999 if stock_disp > 0 else 0)
+
+        if stock_disp == 0:
+            estado = "SIN_STOCK"
+        elif total == 0:
+            estado = "SIN_VENTA"
+        elif dias_cobertura < cob_min:
+            estado = "CRITICO"
+        elif dias_cobertura > cob_max:
+            estado = "EXCESO"
+        else:
+            estado = "OPTIMO"
+
+        resultado.append({
+            "sku": sku,
+            "descripcion": desc_por_sku.get(sku, sku),
+            "co_prov": prov_por_sku.get(sku, ""),
+            "sucursal": suc,
+            "stock_disp": round(stock_disp, 0),
+            "pvd": pvd,
+            "dias_cobertura": dias_cobertura if dias_cobertura != 999 else None,
+            "promedio": round(prom, 1),
+            "cv": cv,
+            "clasif": clasif,
+            "tendencia": tendencia,
+            "estado": estado,
+        })
+
+    resultado.sort(key=lambda x: (x["sku"], x["sucursal"]))
+
+    resumen = {
+        "critico":   sum(1 for r in resultado if r["estado"] == "CRITICO"),
+        "optimo":    sum(1 for r in resultado if r["estado"] == "OPTIMO"),
+        "exceso":    sum(1 for r in resultado if r["estado"] == "EXCESO"),
+        "sin_stock": sum(1 for r in resultado if r["estado"] == "SIN_STOCK"),
+        "sin_venta": sum(1 for r in resultado if r["estado"] == "SIN_VENTA"),
+    }
+
+    return jsonify({"registros": resultado, "resumen": resumen, "n_meses": n_meses})
+
+
+
+@app.route("/api/vendedores/lista")
+def api_vendedores_lista():
+    import json as _json
+    cache = os.path.join(os.path.dirname(__file__), "ventas_cache.json")
+    if not os.path.exists(cache):
+        return jsonify([])
+    with open(cache, encoding="utf-8") as f:
+        registros = _json.load(f)["registros"]
+    vendedores = sorted(set(r["vendedor"] for r in registros if r.get("vendedor")))
+    return jsonify(vendedores)
+
+
+
+@app.route("/api/ventas/meses-disponibles")
+def api_meses_disponibles():
+    import json as _json
+    cache = os.path.join(os.path.dirname(__file__), "ventas_cache.json")
+    if not os.path.exists(cache):
+        return jsonify([])
+    with open(cache, encoding="utf-8") as f:
+        registros = _json.load(f)["registros"]
+    meses = sorted(set(r["anio_mes"] for r in registros))
+    return jsonify(meses)
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False, threaded=True)

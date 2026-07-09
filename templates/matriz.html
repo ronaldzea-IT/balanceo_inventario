@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+{% block heading %}Matriz de Ventas{% endblock %}
+
+{% block content %}
+<style>
+.toolbar { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+.toolbar input[type=text] { flex: 2; min-width: 200px; padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; outline: none; }
+.toolbar input[type=text]:focus { border-color: #2E75B6; }
+.btn-accion { padding: 10px 16px; background: #2E75B6; color: white; border: none; border-radius: 8px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
+.btn-accion:hover { background: #1F4E79; }
+
+.toolbar-prov { margin-bottom: 12px; }
+.dd-wrap-ancho { width: 100%; position: relative; }
+.dd-btn-ancho { width: 100%; padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.85rem; background: white; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.dd-btn-ancho:hover { border-color: #2E75B6; }
+.dd-btn-ancho.active { border-color: #2E75B6; }
+.dd-btn-ancho .arrow { font-size: 0.7rem; color: #999; flex-shrink: 0; }
+.dd-list-ancho { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: white; border: 2px solid #2E75B6; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 999; max-height: 320px; overflow-y: auto; }
+.dd-list-ancho.open { display: block; }
+.dd-search { padding: 8px 10px; border-bottom: 1px solid #eee; }
+.dd-search input { width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.82rem; outline: none; box-sizing: border-box; }
+.dd-item-single { padding: 8px 14px; cursor: pointer; font-size: 0.83rem; }
+.dd-item-single:hover { background: #f0f7ff; }
+.dd-item-single.selected { background: #EBF3FB; color: #1F4E79; font-weight: 600; }
+
+.dd-wrap { position: relative; }
+.dd-btn { padding: 10px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.85rem; background: white; cursor: pointer; white-space: nowrap; min-width: 180px; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.dd-btn:hover { border-color: #2E75B6; }
+.dd-btn.active { border-color: #2E75B6; }
+.dd-btn .arrow { font-size: 0.7rem; color: #999; }
+.dd-list { display: none; position: absolute; top: calc(100% + 4px); left: 0; background: white; border: 2px solid #2E75B6; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 999; min-width: 240px; max-height: 280px; overflow-y: auto; }
+.dd-list.open { display: block; }
+.dd-actions { display: flex; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #eee; }
+.dd-actions span { font-size: 0.75rem; color: #2E75B6; cursor: pointer; text-decoration: underline; }
+.dd-item { display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; font-size: 0.83rem; }
+.dd-item:hover { background: #f0f7ff; }
+.dd-item input[type=checkbox] { cursor: pointer; accent-color: #2E75B6; flex-shrink: 0; }
+
+.rango-fecha { display: flex; gap: 10px; align-items: center; }
+.rango-fecha select { padding: 9px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.85rem; outline: none; background: white; cursor: pointer; }
+.rango-fecha select:focus { border-color: #2E75B6; }
+.rango-fecha span { font-size: 0.8rem; color: #888; }
+
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.kpi { background: white; border-radius: 8px; padding: 12px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid #2E75B6; }
+.kpi-label { font-size: 0.7rem; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
+.kpi-valor { font-size: 1.3rem; font-weight: 700; color: #1F4E79; margin-top: 4px; }
+
+.tabla-wrap { overflow-x: auto; overflow-y: auto; max-height: 70vh; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+table { border-collapse: collapse; background: white; font-size: 0.78rem; white-space: nowrap; }
+thead tr th { background: #1F4E79; color: white; padding: 8px 10px; text-align: center; font-weight: 600; font-size: 0.7rem; text-transform: uppercase; position: sticky; top: 0; z-index: 3; border-right: 1px solid rgba(255,255,255,0.15); }
+thead tr:first-child th.th-sku  { position: sticky; left: 0; z-index: 5; min-width: 80px; }
+thead tr:first-child th.th-desc { position: sticky; left: 80px; z-index: 5; min-width: 260px; }
+th.th-suc { background: #2E75B6; font-size: 0.75rem; letter-spacing: 1px; }
+th.th-total-suc { background: #163a5f; }
+th.th-total-sku { background: #C55A11; }
+th.th-prom { background: #375623; }
+tbody tr { border-bottom: 1px solid #f0f0f0; }
+tbody tr:hover { background: #f8fbff; }
+tbody tr:hover td.td-fixed { background: #f0f7ff; }
+tbody td { padding: 7px 10px; text-align: right; border-right: 1px solid #f0f0f0; }
+tbody td.td-fixed { position: sticky; background: white; z-index: 2; }
+tbody td.td-sku   { left: 0; font-weight: 700; color: #1F4E79; text-align: left; min-width: 80px; }
+tbody td.td-desc  { left: 80px; text-align: left; min-width: 260px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; border-right: 2px solid #e0e0e0; }
+tbody td.td-total-suc { background: #EBF3FB; font-weight: 700; color: #1F4E79; border-right: 2px solid #c8d8e8; }
+tbody td.td-total-sku { background: #FCE4D6; font-weight: 700; color: #843C0C; }
+tbody td.td-prom      { background: #E2EFDA; font-weight: 700; color: #375623; }
+td.cero { color: #ddd; }
+.estado-area { background: white; border-radius: 10px; padding: 48px; text-align: center; color: #bbb; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border: 2px dashed #e0e0e0; }
+.spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #c8e0f5; border-top-color: #2E75B6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading { text-align: center; padding: 40px; color: #2E75B6; }
+</style>
+
+<!-- Fila 1: busqueda + sucursales + vendedores + recargar -->
+<div class="toolbar">
+  <input type="text" id="searchInput" placeholder="Buscar SKU o descripcion..." oninput="filtrar()">
+
+  <div class="dd-wrap" id="wrapSuc">
+    <button class="dd-btn" id="btnSuc" onclick="toggleDD('Suc')">
+      <span id="lblSuc">Todas las sucursales</span><span class="arrow">&#9660;</span>
+    </button>
+    <div class="dd-list" id="listSuc">
+      <div class="dd-actions"><span onclick="selTodosDD('Suc')">Todos</span><span onclick="deselTodosDD('Suc')">Ninguno</span></div>
+      <div id="itemsSuc"></div>
+    </div>
+  </div>
+
+  <div class="dd-wrap" id="wrapVen">
+    <button class="dd-btn" id="btnVen" onclick="toggleDD('Ven')">
+      <span id="lblVen">Todos los vendedores</span><span class="arrow">&#9660;</span>
+    </button>
+    <div class="dd-list" id="listVen">
+      <div class="dd-actions"><span onclick="selTodosDD('Ven')">Todos</span><span onclick="deselTodosDD('Ven')">Ninguno</span></div>
+      <div id="itemsVen"></div>
+    </div>
+  </div>
+
+  <select id="selPeriodo" class="param-input" onchange="cargar()" style="padding:10px 14px;border:2px solid #e0e0e0;border-radius:8px;font-size:0.85rem;outline:none;background:white;cursor:pointer;">
+    <option value="3">Ultimos 3 meses</option>
+    <option value="6">Ultimos 6 meses</option>
+    <option value="12">Ultimos 12 meses</option>
+    <option value="0">Todo el historico</option>
+  </select>
+
+  <button class="btn-accion" onclick="cargar()">&#x21BB; Recargar</button>
+</div>
+
+<!-- Fila 2: proveedor -->
+<div class="toolbar-prov">
+  <div class="dd-wrap-ancho" id="wrapProv">
+    <button class="dd-btn-ancho" id="btnProv" onclick="toggleProv()">
+      <span id="lblProv">Todos los proveedores</span><span class="arrow">&#9660;</span>
+    </button>
+    <div class="dd-list-ancho" id="listProv">
+      <div class="dd-search"><input type="text" id="searchProv" placeholder="Buscar proveedor..."></div>
+      <div id="itemsProv"></div>
+    </div>
+  </div>
+</div>
+
+<div class="kpi-row" id="kpiRow" style="display:none;">
+  <div class="kpi"><div class="kpi-label">SKUs</div><div class="kpi-valor" id="kpiSkus">-</div></div>
+  <div class="kpi"><div class="kpi-label">Sucursales</div><div class="kpi-valor" id="kpiSucs">-</div></div>
+  <div class="kpi"><div class="kpi-label">Meses</div><div class="kpi-valor" id="kpiMeses">-</div></div>
+  <div class="kpi"><div class="kpi-label">Total Unidades</div><div class="kpi-valor" id="kpiTotal">-</div></div>
+  <div class="kpi"><div class="kpi-label">Prom. Mensual</div><div class="kpi-valor" id="kpiProm">-</div></div>
+</div>
+
+<div id="contenido"><div class="estado-area"><p>Seleccione los filtros y presione Recargar para ver la matriz</p></div></div>
+
+<script>
+let matrizData = null;
+let proveedoresList = [];
+let mapaNombresProv = {};
+let provSeleccionado = "";
+let datosFiltrados = [];
+let mesesDisponibles = [];
+
+const selSuc = new Set();
+const todosSuc = [];
+const selVen = new Set();
+const todosVen = [];
+
+// ---- Dropdown generico Suc/Ven ----
+function toggleDD(key) {
+  ["Suc","Ven"].forEach(k => {
+    if (k !== key) {
+      document.getElementById("list"+k).classList.remove("open");
+      document.getElementById("btn"+k).classList.remove("active");
+    }
+  });
+  document.getElementById("list"+key).classList.toggle("open");
+  document.getElementById("btn"+key).classList.toggle("active");
+}
+document.addEventListener("click", function(e) {
+  ["Suc","Ven"].forEach(k => {
+    const wrap = document.getElementById("wrap"+k);
+    if (wrap && !wrap.contains(e.target)) {
+      document.getElementById("list"+k).classList.remove("open");
+      document.getElementById("btn"+k).classList.remove("active");
+    }
+  });
+  if (!document.getElementById("wrapProv").contains(e.target)) {
+    document.getElementById("listProv").classList.remove("open");
+    document.getElementById("btnProv").classList.remove("active");
+  }
+});
+
+function poblarSuc(lista) {
+  todosSuc.length = 0;
+  lista.forEach(s => {
+    todosSuc.push(s);
+    const v = localStorage.getItem("suc_activa_" + s);
+    if (v === null || v === "1") selSuc.add(s); else selSuc.delete(s);
+  });
+  actualizarLabelSuc();
+  renderSuc();
+}
+function renderSuc() {
+  const cont = document.getElementById("itemsSuc");
+  cont.innerHTML = "";
+  todosSuc.forEach(s => {
+    const div = document.createElement("div");
+    div.className = "dd-item";
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = selSuc.has(s);
+    const span = document.createElement("span"); span.textContent = s;
+    div.appendChild(cb); div.appendChild(span);
+    cb.addEventListener("change", function() {
+      if (this.checked) selSuc.add(s); else selSuc.delete(s);
+      actualizarLabelSuc(); filtrarLocal();
+    });
+    div.addEventListener("click", function(e) { if (e.target !== cb) cb.click(); });
+    cont.appendChild(div);
+  });
+}
+function actualizarLabelSuc() {
+  const lbl = document.getElementById("lblSuc");
+  const n = selSuc.size, total = todosSuc.length;
+  if (n === 0) lbl.textContent = "Sin sucursales";
+  else if (n === total) lbl.textContent = "Todas las sucursales";
+  else if (n === 1) lbl.textContent = [...selSuc][0];
+  else lbl.textContent = n + " sucursales";
+}
+
+function poblarVen(lista) {
+  todosVen.length = 0;
+  lista.forEach(v => {
+    todosVen.push(v);
+    const val = localStorage.getItem("ven_activo_" + v);
+    if (val === null || val === "1") selVen.add(v); else selVen.delete(v);
+  });
+  actualizarLabelVen();
+  renderVen();
+}
+function renderVen() {
+  const cont = document.getElementById("itemsVen");
+  cont.innerHTML = "";
+  todosVen.forEach(v => {
+    const div = document.createElement("div");
+    div.className = "dd-item";
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = selVen.has(v);
+    const span = document.createElement("span"); span.textContent = v;
+    div.appendChild(cb); div.appendChild(span);
+    cb.addEventListener("change", function() {
+      if (this.checked) selVen.add(v); else selVen.delete(v);
+      actualizarLabelVen(); cargar();
+    });
+    div.addEventListener("click", function(e) { if (e.target !== cb) cb.click(); });
+    cont.appendChild(div);
+  });
+}
+function actualizarLabelVen() {
+  const lbl = document.getElementById("lblVen");
+  const n = selVen.size, total = todosVen.length;
+  if (n === 0) lbl.textContent = "Sin vendedores";
+  else if (n === total) lbl.textContent = "Todos los vendedores";
+  else if (n === 1) lbl.textContent = [...selVen][0];
+  else lbl.textContent = n + " vendedores";
+}
+
+function selTodosDD(key) {
+  if (key === "Suc") { todosSuc.forEach(s => selSuc.add(s)); actualizarLabelSuc(); renderSuc(); filtrarLocal(); }
+  else { todosVen.forEach(v => selVen.add(v)); actualizarLabelVen(); renderVen(); cargar(); }
+}
+function deselTodosDD(key) {
+  if (key === "Suc") { selSuc.clear(); actualizarLabelSuc(); renderSuc(); filtrarLocal(); }
+  else { selVen.clear(); actualizarLabelVen(); renderVen(); cargar(); }
+}
+
+// ---- Rango de fecha ----
+async function poblarRangoFecha() {
+  const periodo = localStorage.getItem("periodo_ventas") || "12";
+  document.getElementById("selPeriodo").value = periodo;
+}
+
+// ---- Dropdown Proveedor ----
+function toggleProv() {
+  document.getElementById("listProv").classList.toggle("open");
+  document.getElementById("btnProv").classList.toggle("active");
+}
+
+async function poblarProv() {
+  try { const r = await fetch("/api/proveedores/lista"); proveedoresList = await r.json(); }
+  catch(e) { proveedoresList = []; }
+  mapaNombresProv = {};
+  proveedoresList.forEach(p => { mapaNombresProv[p.codigo] = p.nombre; });
+  const activos = Object.keys(localStorage)
+    .filter(k => k.startsWith("prov_activo_") && localStorage.getItem(k) === "1")
+    .map(k => k.replace("prov_activo_", ""));
+  provSeleccionado = activos.length > 0 ? activos[0] : "";
+  actualizarLabelProv(); renderProv();
+  document.getElementById("searchProv").addEventListener("input", function() {
+    const q = this.value.toLowerCase();
+    document.getElementById("itemsProv").querySelectorAll(".dd-item-single").forEach(el => {
+      el.style.display = el.textContent.toLowerCase().includes(q) ? "" : "none";
+    });
+  });
+}
+
+function renderProv() {
+  const cont = document.getElementById("itemsProv");
+  cont.innerHTML = "";
+  const divTodos = document.createElement("div");
+  divTodos.className = "dd-item-single" + (!provSeleccionado ? " selected" : "");
+  divTodos.textContent = "Todos los proveedores";
+  divTodos.addEventListener("click", function() {
+    provSeleccionado = ""; actualizarLabelProv(); renderProv();
+    document.getElementById("listProv").classList.remove("open");
+    document.getElementById("btnProv").classList.remove("active");
+    cargar();
+  });
+  cont.appendChild(divTodos);
+  proveedoresList.forEach(p => {
+    const div = document.createElement("div");
+    div.className = "dd-item-single" + (provSeleccionado === p.codigo ? " selected" : "");
+    div.textContent = p.codigo + " - " + p.nombre;
+    div.addEventListener("click", function() {
+      provSeleccionado = p.codigo; actualizarLabelProv(); renderProv();
+      document.getElementById("listProv").classList.remove("open");
+      document.getElementById("btnProv").classList.remove("active");
+      cargar();
+    });
+    cont.appendChild(div);
+  });
+}
+
+function actualizarLabelProv() {
+  const lbl = document.getElementById("lblProv");
+  if (!provSeleccionado) { lbl.textContent = "Todos los proveedores"; return; }
+  const nombre = mapaNombresProv[provSeleccionado];
+  lbl.textContent = nombre ? (provSeleccionado + " - " + nombre) : provSeleccionado;
+}
+
+// ---- Carga principal ----
+async function cargar() {
+  document.getElementById("contenido").innerHTML = "<div class='loading'><div class='spinner'></div><br>Construyendo matriz...</div>";
+  document.getElementById("kpiRow").style.display = "none";
+
+  const meses = document.getElementById("selPeriodo").value;
+
+  const params = new URLSearchParams();
+  if (meses) params.append("meses", meses);
+  if (provSeleccionado) params.append("co_prov", provSeleccionado);
+  if (todosVen.length && selVen.size < todosVen.length) {
+    params.append("vendedores", [...selVen].join(","));
+  }
+
+  const res  = await fetch("/api/matriz?" + params.toString());
+  matrizData = await res.json();
+  if (matrizData.error) {
+    document.getElementById("contenido").innerHTML = "<div class='estado-area'><p style='color:#C00000'>" + matrizData.error + "</p></div>";
+    return;
+  }
+
+  poblarSuc(matrizData.sucursales);
+
+  if (todosVen.length === 0) {
+    const resVen = await fetch("/api/vendedores/lista");
+    const todosLosVen = await resVen.json();
+    poblarVen(todosLosVen);
+  }
+
+  filtrarLocal();
+}
+
+function filtrarLocal() {
+  if (!matrizData) return;
+  const q = document.getElementById("searchInput").value.toLowerCase();
+  // Filtro de texto + sucursales (aplicado sobre columnas visibles)
+  datosFiltrados = matrizData.filas.filter(f => (f.sku + f.descripcion).toLowerCase().includes(q));
+  actualizarKPIs();
+  renderMatriz();
+}
+function filtrar() { filtrarLocal(); }
+
+function actualizarKPIs() {
+  if (!matrizData) return;
+  const sucsVisibles = matrizData.sucursales.filter(s => selSuc.has(s));
+  const totalU = datosFiltrados.reduce((a, f) => {
+    let suma = 0;
+    sucsVisibles.forEach(s => { suma += (f.sucursales[s] ? f.sucursales[s].total : 0); });
+    return a + suma;
+  }, 0);
+  document.getElementById("kpiSkus").textContent  = datosFiltrados.length.toLocaleString();
+  document.getElementById("kpiSucs").textContent  = sucsVisibles.length;
+  document.getElementById("kpiMeses").textContent = matrizData.meses.length;
+  document.getElementById("kpiTotal").textContent = totalU.toLocaleString();
+  document.getElementById("kpiProm").textContent  = matrizData.meses.length ? Math.round(totalU / matrizData.meses.length).toLocaleString() : "0";
+  document.getElementById("kpiRow").style.display = "grid";
+}
+
+function renderMatriz() {
+  if (!matrizData) return;
+  const sucs  = matrizData.sucursales.filter(s => selSuc.has(s));
+  const meses = matrizData.meses;
+
+  let th1 = "<th class='th-sku' rowspan='2'>SKU</th><th class='th-desc' rowspan='2'>Descripcion</th>";
+  sucs.forEach(s => {
+    th1 += "<th class='th-suc' colspan='" + (meses.length + 1) + "'>" + s + "</th>";
+  });
+  th1 += "<th class='th-total-sku' rowspan='2'>Total SKU</th><th class='th-prom' rowspan='2'>Prom/Mes</th>";
+
+  let th2 = "";
+  sucs.forEach(() => {
+    meses.forEach(m => { th2 += "<th>" + m + "</th>"; });
+    th2 += "<th class='th-total-suc'>Total</th>";
+  });
+
+  let tbody = "";
+  datosFiltrados.forEach(f => {
+    let tr = "<tr>";
+    tr += "<td class='td-fixed td-sku'>" + f.sku + "</td>";
+    tr += "<td class='td-fixed td-desc' title='" + f.descripcion + "'>" + f.descripcion + "</td>";
+    let totalSkuVisible = 0;
+    sucs.forEach(s => {
+      const sucData = f.sucursales[s] || { meses: {}, total: 0 };
+      meses.forEach(m => {
+        const v = sucData.meses[m] || 0;
+        tr += "<td class='" + (v === 0 ? "cero" : "") + "'>" + (v === 0 ? "-" : v.toLocaleString()) + "</td>";
+      });
+      tr += "<td class='td-total-suc'>" + (sucData.total || 0).toLocaleString() + "</td>";
+      totalSkuVisible += sucData.total || 0;
+    });
+    tr += "<td class='td-total-sku'>" + totalSkuVisible.toLocaleString() + "</td>";
+    tr += "<td class='td-prom'>" + (meses.length ? (totalSkuVisible / meses.length).toFixed(1) : "0") + "</td>";
+    tr += "</tr>";
+    tbody += tr;
+  });
+
+  document.getElementById("contenido").innerHTML =
+    "<div class='tabla-wrap'>" +
+    "<table>" +
+    "<thead><tr>" + th1 + "</tr><tr>" + th2 + "</tr></thead>" +
+    "<tbody>" + tbody + "</tbody>" +
+    "</table></div>";
+}
+
+window.onload = async function() {
+  await poblarProv();
+  await poblarRangoFecha();
+  await cargar();
+};
+</script>
+{% endblock %}

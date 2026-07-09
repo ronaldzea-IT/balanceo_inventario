@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block heading %}Dashboard{% endblock %}
+{% block content %}
+<style>
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 28px; }
+.kpi-card { background: white; border-radius: 10px; padding: 20px 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid #2E75B6; }
+.kpi-card.verde   { border-left-color: #375623; }
+.kpi-card.naranja { border-left-color: #C55A11; }
+.kpi-label { font-size: 0.75rem; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
+.kpi-valor { font-size: 2rem; font-weight: 700; color: #1F4E79; margin: 6px 0 2px; }
+.kpi-sub   { font-size: 0.78rem; color: #aaa; }
+.coming-soon { background: white; border-radius: 10px; padding: 40px; text-align: center; color: #bbb; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-top: 24px; }
+</style>
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-label">Proveedores activos</div>
+    <div class="kpi-valor">{{ kpis.proveedores }}</div>
+    <div class="kpi-sub">con compras registradas</div>
+  </div>
+  <div class="kpi-card verde">
+    <div class="kpi-label">Articulos activos</div>
+    <div class="kpi-valor">{{ kpis.articulos }}</div>
+    <div class="kpi-sub">en catalogo</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Sucursales</div>
+    <div class="kpi-valor">{{ kpis.sucursales }}</div>
+    <div class="kpi-sub">en 4 regiones</div>
+  </div>
+  <div class="kpi-card naranja">
+    <div class="kpi-label">SKUs en stock</div>
+    <div class="kpi-valor">{{ kpis.skus_stock }}</div>
+    <div class="kpi-sub">con existencia mayor a 0</div>
+  </div>
+</div>
+<div class="coming-soon">
+  <p>Los modulos de Ventas, Stock, Rotacion, Min-Max y Balanceo se iran activando en los proximos pasos.</p>
+</div>
+{% endblock %}

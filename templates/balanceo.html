@@ -1,0 +1,610 @@
+{% extends "base.html" %}
+{% block heading %}Balanceo{% endblock %}
+
+{% block content %}
+<style>
+.params-panel { background: white; border-radius: 10px; padding: 16px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px; }
+.params-titulo { font-size: 0.75rem; font-weight: 700; color: #1F4E79; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+.params-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.param-item { display: flex; flex-direction: column; gap: 4px; }
+.param-label { font-size: 0.72rem; color: #888; }
+.param-input { padding: 7px 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 0.85rem; outline: none; width: 100%; box-sizing: border-box; }
+.param-input:focus { border-color: #2E75B6; }
+.params-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-top: 12px; }
+
+.toolbar-prov { margin-bottom: 16px; }
+.dd-wrap-ancho { width: 100%; }
+.dd-btn-ancho { width: 100%; min-width: 100%; padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.85rem; background: white; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.dd-btn-ancho:hover { border-color: #2E75B6; }
+.dd-btn-ancho.active { border-color: #2E75B6; }
+.dd-btn-ancho .arrow { font-size: 0.7rem; color: #999; flex-shrink: 0; }
+.dd-btn-ancho:disabled { opacity: 0.5; cursor: not-allowed; }
+.dd-list-ancho { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: white; border: 2px solid #2E75B6; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 999; max-height: 360px; overflow-y: auto; }
+.dd-list-ancho.open { display: block; }
+.dd-search { padding: 8px 10px; border-bottom: 1px solid #eee; }
+.dd-search input { width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.82rem; outline: none; box-sizing: border-box; }
+.dd-item-single { padding: 8px 14px; cursor: pointer; font-size: 0.83rem; }
+.dd-item-single:hover { background: #f0f7ff; }
+.dd-item-single.selected { background: #EBF3FB; color: #1F4E79; font-weight: 600; }
+
+.btn-accion { padding: 10px 16px; background: #2E75B6; color: white; border: none; border-radius: 8px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
+.btn-accion:hover { background: #1F4E79; }
+.btn-calcular { background: #375623; font-size: 0.9rem; padding: 12px 28px; }
+.btn-calcular:hover { background: #1E3A0F; }
+
+.resumen-panel { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px; display: none; }
+.resumen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.res-card {
+  background: linear-gradient(135deg, #2E75B6 0%, #1F4E79 100%);
+  border-radius: 14px; padding: 16px 18px;
+  display: flex; align-items: center; gap: 14px;
+  box-shadow: 0 4px 14px rgba(31,78,121,0.25);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.res-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(31,78,121,0.32); }
+.res-icono.verde    { background: rgba(76,140,74,0.35); }
+.res-icono.amarillo { background: rgba(224,138,60,0.35); }
+.res-icono.rojo     { background: rgba(214,69,69,0.4); }
+.res-icono {
+  width: 44px; height: 44px; flex-shrink: 0;
+  background: rgba(255,255,255,0.22); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.25rem;
+}
+.res-texto { min-width: 0; }
+.res-label { font-size: 0.68rem; color: rgba(255,255,255,0.85); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
+.res-valor { font-size: 1.35rem; font-weight: 800; color: #fff; margin-top: 2px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.res-sub   { font-size: 0.72rem; color: rgba(255,255,255,0.8); margin-top: 2px; }
+
+.toolbar { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+.toolbar input[type=text] { flex: 2; min-width: 200px; padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; outline: none; }
+.toolbar input[type=text]:focus { border-color: #2E75B6; }
+.filtro-accion { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.btn-fil { padding: 5px 12px; border: 2px solid #e0e0e0; border-radius: 20px; font-size: 0.78rem; cursor: pointer; background: white; }
+.btn-fil.activo { border-color: #2E75B6; background: #EBF3FB; font-weight: 600; }
+
+table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); font-size: 0.82rem; }
+thead th { background: #1F4E79; color: white; padding: 9px 10px; text-align: left; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; position: sticky; top: 0; }
+thead th.right { text-align: right; }
+thead th.center { text-align: center; }
+tbody tr { border-bottom: 1px solid #f5f5f5; transition: background 0.1s; }
+tbody tr:hover { background: #f8fbff; }
+tbody td { padding: 8px 10px; }
+tbody td.right { text-align: right; }
+tbody td.center { text-align: center; }
+.cod { font-weight: 700; color: #1F4E79; }
+.suc-badge { background: #1F4E79; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; }
+.suc-orig  { background: #375623; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; }
+.dist-verde    { color: #375623; font-weight: 700; }
+.dist-amarillo { color: #C55A11; font-weight: 700; }
+.dist-rojo     { color: #C00000; font-weight: 700; }
+.accion-trasladar { background: #E2EFDA; color: #375623; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; }
+.accion-comprar   { background: #FFE0E0; color: #C00000; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; }
+.accion-mixta     { background: #FCE4D6; color: #843C0C; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; }
+.num-traslado { color: #375623; font-weight: 700; }
+.num-compra   { color: #C00000; font-weight: 700; }
+.col-resaltada { background: #FFF6D9 !important; }
+th.col-resaltada { background: #C55A11 !important; }
+tr.fila-resaltada td { background: #E8F0FE !important; }
+tr.fila-resaltada td.col-resaltada { background: #FFE9A8 !important; }
+tr.fila-resaltada:hover td { background: #DCE7FB !important; }
+
+.paginador { display: flex; align-items: center; justify-content: space-between; padding: 8px 4px; margin: 8px 0; font-size: 0.82rem; color: #666; }
+.pag-info { color: #888; }
+.pag-select { padding: 6px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.82rem; outline: none; background: white; cursor: pointer; }
+.pag-select:focus { border-color: #2E75B6; }
+.estado-area { background: white; border-radius: 10px; padding: 48px; text-align: center; color: #bbb; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border: 2px dashed #e0e0e0; }
+.spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #c8e0f5; border-top-color: #2E75B6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading { text-align: center; padding: 40px; color: #2E75B6; }
+</style>
+
+<!-- Panel Parametros Min-Max -->
+<!-- inputs ocultos para parametros por defecto -->
+<input type="hidden" id="fz_x" value="2.05"><input type="hidden" id="fz_y" value="1.65"><input type="hidden" id="fz_z" value="1.28"><input type="hidden" id="fz_n" value="0"><input type="hidden" id="lt_andino" value="30"><input type="hidden" id="lt_llanero" value="45"><input type="hidden" id="lt_centro" value="35"><input type="hidden" id="lt_oriente" value="60"><input type="hidden" id="cobertura" value="30"><input type="hidden" id="meses" value="12">
+
+<!-- Dropdown Proveedor -->
+<div class="toolbar-prov">
+  <div style="position:relative;" id="wrapProv">
+    <button class="dd-btn-ancho" id="btnProv" onclick="toggleProv()">
+      <span id="lblProv">Seleccione un proveedor...</span><span class="arrow">&#9660;</span>
+    </button>
+    <div class="dd-list-ancho" id="listProv">
+      <div class="dd-search"><input type="text" id="searchProv" placeholder="Buscar proveedor..."></div>
+      <div id="itemsProv"></div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-bottom:16px;">
+  <button class="btn-accion btn-calcular" onclick="calcular()">&#9654; Calcular Balanceo</button>
+  <button class="btn-accion" id="btnReportePdf" onclick="generarReportePDF()" style="background:#843C0C;display:none;">&#128424; Imprimir Reporte</button>
+</div>
+
+<!-- Resumen ejecutivo -->
+<div class="resumen-panel" id="resumenPanel">
+  <div class="params-titulo">Resumen Ejecutivo</div>
+  <div class="resumen-grid">
+    <div class="res-card">
+      <div class="res-icono">&#128230;</div>
+      <div class="res-texto"><div class="res-label">SKU-Suc con Deficit</div><div class="res-valor" id="rTotalDef">-</div></div>
+    </div>
+    <div class="res-card">
+      <div class="res-icono">&#128666;</div>
+      <div class="res-texto"><div class="res-label">Unidades a Trasladar</div><div class="res-valor" id="rTrasladar">-</div></div>
+    </div>
+    <div class="res-card">
+      <div class="res-icono">&#128722;</div>
+      <div class="res-texto"><div class="res-label">Unidades a Comprar</div><div class="res-valor" id="rComprar">-</div></div>
+    </div>
+    <div class="res-card">
+      <div class="res-icono">&#128200;</div>
+      <div class="res-texto"><div class="res-label">Necesidad Total</div><div class="res-valor" id="rNecesidad">-</div></div>
+    </div>
+    <div class="res-card">
+      <div class="res-icono">&#127919;</div>
+      <div class="res-texto"><div class="res-label">% Cubierto Balanceo</div><div class="res-valor" id="rPctBal">-</div><div class="res-sub" id="rPctComp"></div></div>
+    </div>
+  </div>
+  <div class="resumen-grid">
+    <div class="res-card">
+      <div class="res-icono verde">&#128994;</div>
+      <div class="res-texto"><div class="res-label">Misma Region</div><div class="res-valor" id="rVerde">-</div></div>
+    </div>
+    <div class="res-card">
+      <div class="res-icono amarillo">&#128993;</div>
+      <div class="res-texto"><div class="res-label">Region Cercana</div><div class="res-valor" id="rAmarillo">-</div></div>
+    </div>
+    <div class="res-card">
+      <div class="res-icono rojo">&#128308;</div>
+      <div class="res-texto"><div class="res-label">Region Lejana</div><div class="res-valor" id="rRojo">-</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Filtros tabla -->
+<div class="toolbar" id="toolbarFiltros" style="display:none;">
+  <input type="text" id="searchInput" placeholder="Buscar SKU o descripcion..." oninput="filtrar()">
+  <button class="btn-accion" onclick="calcular()">&#x21BB; Recalcular</button>
+</div>
+<div class="filtro-accion" id="filtroAccionDiv" style="display:none;">
+  <button class="btn-fil activo" onclick="setFiltro(this,'')">Todos</button>
+  <button class="btn-fil" onclick="setFiltro(this,'TRASLADAR')">🟢 Trasladar</button>
+  <button class="btn-fil" onclick="setFiltro(this,'COMPRAR')">🔴 Comprar</button>
+  <button class="btn-fil" onclick="setFiltro(this,'MIXTO')">🟡 Trasladar + Comprar</button>
+</div>
+
+<div id="contenido"><div class="estado-area"><p>Seleccione un proveedor, configure los parametros y presione Calcular Balanceo</p></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script>
+let todosLosDatos = [];
+let datosFiltrados = [];
+let paginaActual = 1;
+let POR_PAGINA = 25;
+let filtroAccion = "";
+let proveedoresList = [];
+let mapaNombresProv = {};
+let provSeleccionado = "";
+
+// ---- Dropdown Proveedor ----
+function toggleProv() {
+  document.getElementById("listProv").classList.toggle("open");
+  document.getElementById("btnProv").classList.toggle("active");
+}
+document.addEventListener("click", function(e) {
+  if (!document.getElementById("wrapProv").contains(e.target)) {
+    document.getElementById("listProv").classList.remove("open");
+    document.getElementById("btnProv").classList.remove("active");
+  }
+});
+
+async function poblarProv() {
+  try { const r = await fetch("/api/proveedores/lista"); proveedoresList = await r.json(); }
+  catch(e) { proveedoresList = []; }
+  mapaNombresProv = {};
+  proveedoresList.forEach(p => { mapaNombresProv[p.codigo] = p.nombre; });
+
+  // Leer proveedor activo desde localStorage
+  const activos = Object.keys(localStorage)
+    .filter(k => k.startsWith("prov_activo_") && localStorage.getItem(k) === "1")
+    .map(k => k.replace("prov_activo_", ""));
+  provSeleccionado = activos.length > 0 ? activos[0] : "";
+  actualizarLabelProv();
+  renderProv();
+
+  document.getElementById("searchProv").addEventListener("input", function() {
+    const q = this.value.toLowerCase();
+    document.getElementById("itemsProv").querySelectorAll(".dd-item-single").forEach(el => {
+      el.style.display = el.textContent.toLowerCase().includes(q) ? "" : "none";
+    });
+  });
+}
+
+function renderProv() {
+  const cont = document.getElementById("itemsProv");
+  cont.innerHTML = "";
+  proveedoresList.forEach(p => {
+    const div = document.createElement("div");
+    div.className = "dd-item-single" + (provSeleccionado === p.codigo ? " selected" : "");
+    div.textContent = p.codigo + " - " + p.nombre;
+    div.addEventListener("click", function() {
+      provSeleccionado = p.codigo;
+      actualizarLabelProv(); renderProv();
+      document.getElementById("listProv").classList.remove("open");
+      document.getElementById("btnProv").classList.remove("active");
+    });
+    cont.appendChild(div);
+  });
+}
+
+function actualizarLabelProv() {
+  const lbl = document.getElementById("lblProv");
+  if (!provSeleccionado) { lbl.textContent = "Seleccione un proveedor..."; return; }
+  const nombre = mapaNombresProv[provSeleccionado];
+  lbl.textContent = nombre ? (provSeleccionado + " - " + nombre) : provSeleccionado;
+}
+
+function setFiltro(btn, accion) {
+  document.querySelectorAll(".btn-fil").forEach(b => b.classList.remove("activo"));
+  btn.classList.add("activo");
+  filtroAccion = accion;
+  filtrar();
+}
+
+async function calcular() {
+  if (!provSeleccionado) { alert("Seleccione un proveedor primero."); return; }
+
+  document.getElementById("contenido").innerHTML = "<div class='loading'><div class='spinner'></div><br>Calculando Min-Max...</div>";
+  document.getElementById("resumenPanel").style.display = "none";
+  document.getElementById("toolbarFiltros").style.display = "none";
+  document.getElementById("filtroAccionDiv").style.display = "none";
+
+  // Paso 1: calcular Min-Max
+  const params = new URLSearchParams({
+    meses:      document.getElementById("meses").value,
+    cobertura:  document.getElementById("cobertura").value,
+    fz_x:       document.getElementById("fz_x").value,
+    fz_y:       document.getElementById("fz_y").value,
+    fz_z:       document.getElementById("fz_z").value,
+    fz_n:       document.getElementById("fz_n").value,
+    lt_andino:  document.getElementById("lt_andino").value,
+    lt_llanero: document.getElementById("lt_llanero").value,
+    lt_centro:  document.getElementById("lt_centro").value,
+    lt_oriente: document.getElementById("lt_oriente").value,
+    co_prov:    provSeleccionado,
+  });
+
+  const resMinMax = await fetch("/api/minmax?" + params.toString());
+  const minmaxData = await resMinMax.json();
+
+  if (minmaxData.error) {
+    document.getElementById("contenido").innerHTML = "<div class='estado-area'><p style='color:#C00000'>" + minmaxData.error + "</p></div>";
+    return;
+  }
+
+  document.getElementById("contenido").innerHTML = "<div class='loading'><div class='spinner'></div><br>Calculando Balanceo...</div>";
+
+  // Paso 2: calcular Balanceo
+  const resBal = await fetch("/api/balanceo", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ minmax: minmaxData, co_prov: provSeleccionado })
+  });
+  const data = await resBal.json();
+
+  if (data.error) {
+    document.getElementById("contenido").innerHTML = "<div class='estado-area'><p style='color:#C00000'>" + data.error + "</p></div>";
+    return;
+  }
+
+  // Resumen
+  const r = data.resumen;
+  document.getElementById("rTotalDef").textContent  = r.total_deficit.toLocaleString();
+  document.getElementById("rTrasladar").textContent = r.total_trasladar.toLocaleString();
+  document.getElementById("rComprar").textContent   = r.total_comprar.toLocaleString();
+  document.getElementById("rNecesidad").textContent = r.total_necesidad.toLocaleString();
+  document.getElementById("rPctBal").textContent    = (r.pct_balanceo * 100).toFixed(1) + "%";
+  document.getElementById("rPctComp").textContent   = ((1 - r.pct_balanceo) * 100).toFixed(1) + "% requiere compra";
+  document.getElementById("rVerde").textContent     = r.traslados_verde.toLocaleString();
+  document.getElementById("rAmarillo").textContent  = r.traslados_amarillo.toLocaleString();
+  document.getElementById("rRojo").textContent      = r.traslados_rojo.toLocaleString();
+  document.getElementById("resumenPanel").style.display = "block";
+  document.getElementById("toolbarFiltros").style.display = "flex";
+  document.getElementById("filtroAccionDiv").style.display = "flex";
+  document.getElementById("btnReportePdf").style.display = "inline-block";
+  window._resumenGlobal = r;
+
+  todosLosDatos = data.detalle;
+  paginaActual = 1;
+  filtrar();
+}
+
+function filtrar() {
+  const q = document.getElementById("searchInput").value.toLowerCase();
+  datosFiltrados = todosLosDatos.filter(d => {
+    const textoOk = (d.sku + d.descripcion).toLowerCase().includes(q);
+    let accionOk = true;
+    if (filtroAccion === "TRASLADAR") accionOk = d.accion.includes("TRASLADAR");
+    else if (filtroAccion === "COMPRAR") accionOk = d.accion === "COMPRAR";
+    else if (filtroAccion === "MIXTO")   accionOk = d.accion === "TRASLADAR + COMPRAR";
+    return textoOk && accionOk;
+  });
+  paginaActual = 1;
+  renderTabla();
+}
+
+function distBadge(d) {
+  if (d === "verde")    return "<span class='dist-verde'>🟢 Misma region</span>";
+  if (d === "amarillo") return "<span class='dist-amarillo'>🟡 Cercana</span>";
+  if (d === "rojo")     return "<span class='dist-rojo'>🔴 Lejana</span>";
+  return "-";
+}
+
+function accionBadge(a) {
+  if (a.includes("TRASLADAR") && !a.includes("COMPRAR")) return "<span class='accion-trasladar'>" + a + "</span>";
+  if (a === "COMPRAR") return "<span class='accion-comprar'>" + a + "</span>";
+  return "<span class='accion-mixta'>" + a + "</span>";
+}
+
+let sortCol = "";
+let sortAsc = true;
+let colResaltada = "";
+let filaResaltada = -1;
+
+function sortByBal(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = true; }
+  colResaltada = col;
+  paginaActual = 1;
+  renderTabla();
+}
+function sortIconBal(col) {
+  if (sortCol !== col) return " &#8597;";
+  return sortAsc ? " &#8593;" : " &#8595;";
+}
+function toggleFilaBal(idx) {
+  filaResaltada = (filaResaltada === idx) ? -1 : idx;
+  renderTabla();
+}
+
+function renderTabla() {
+  const contenido = document.getElementById("contenido");
+  if (!datosFiltrados.length) {
+    contenido.innerHTML = "<div class='estado-area'><p>No hay registros con los filtros aplicados</p></div>";
+    return;
+  }
+
+  if (sortCol) {
+    datosFiltrados.sort((a, b) => {
+      let va = a[sortCol], vb = b[sortCol];
+      if (typeof va === "string") va = va.toLowerCase();
+      if (typeof vb === "string") vb = vb.toLowerCase();
+      if (va < vb) return sortAsc ? -1 : 1;
+      if (va > vb) return sortAsc ? 1 : -1;
+      return 0;
+    });
+  }
+
+  const totalPags = Math.ceil(datosFiltrados.length / POR_PAGINA);
+  if (paginaActual > totalPags) paginaActual = totalPags;
+  const inicio = (paginaActual - 1) * POR_PAGINA;
+  const pagina = datosFiltrados.slice(inicio, inicio + POR_PAGINA);
+
+  let opciones = "";
+  for (let i = 1; i <= totalPags; i++)
+    opciones += "<option value='" + i + "'" + (i===paginaActual?" selected":"") + ">Pag " + i + " de " + totalPags + "</option>";
+  const selectorTam = "<select class='pag-select' onchange='cambiarTam(this.value)' style='margin-left:8px;'>" +
+    [25,50,100].map(n => "<option value='" + n + "'" + (n===POR_PAGINA?" selected":"") + ">" + n + " / pag</option>").join("") + "</select>";
+  const paginador = "<div class='paginador'>" +
+    "<span class='pag-info'>" + datosFiltrados.length.toLocaleString() + " registros &nbsp;|&nbsp; mostrando " + (inicio+1) + " - " + Math.min(inicio+POR_PAGINA, datosFiltrados.length) + "</span>" +
+    "<div style='display:flex;gap:8px;align-items:center;'>" + selectorTam +
+    "<select class='pag-select' onchange='irPagina(this.value)'>" + opciones + "</select></div></div>";
+
+  const colCls = function(col) { return colResaltada === col ? " col-resaltada" : ""; };
+
+  let filas = pagina.map((d, i) => {
+    const idxGlobal = inicio + i;
+    const filaCls = filaResaltada === idxGlobal ? " fila-resaltada" : "";
+    return "<tr class='" + filaCls.trim() + "' onclick=\"toggleFilaBal(" + idxGlobal + ")\" style='cursor:pointer'>" +
+    "<td class='cod" + colCls("sku") + "'>" + d.sku + "</td>" +
+    "<td class='" + colCls("descripcion").trim() + "'>" + d.descripcion + "</td>" +
+    "<td class='" + colCls("suc_destino").trim() + "'><span class='suc-badge'>" + d.suc_destino + "</span></td>" +
+    "<td class='center" + colCls("reg_destino") + "'>" + d.reg_destino + "</td>" +
+    "<td class='right" + colCls("stock_dest") + "'>" + d.stock_dest.toFixed(0) + "</td>" +
+    "<td class='right" + colCls("punto_min") + "'>" + d.punto_min.toFixed(1) + "</td>" +
+    "<td class='right" + colCls("necesidad") + "'>" + d.necesidad.toFixed(0) + "</td>" +
+    "<td class='center" + colCls("suc_origen") + "'>" + (d.suc_origen !== "Sin origen" ? "<span class='suc-orig'>" + d.suc_origen + "</span>" : "<span style='color:#bbb'>-</span>") + "</td>" +
+    "<td class='center" + colCls("distancia") + "'>" + distBadge(d.distancia) + "</td>" +
+    "<td class='right num-traslado" + colCls("a_trasladar") + "'>" + (d.a_trasladar > 0 ? d.a_trasladar.toFixed(0) : "-") + "</td>" +
+    "<td class='right num-compra" + colCls("a_comprar") + "'>"   + (d.a_comprar   > 0 ? d.a_comprar.toFixed(0)   : "-") + "</td>" +
+    "<td class='center" + colCls("accion") + "'>" + accionBadge(d.accion) + "</td>" +
+    "</tr>";
+  }).join("");
+
+  const encCols = [
+    ["sku","SKU",""], ["descripcion","Descripcion",""], ["suc_destino","Destino",""],
+    ["reg_destino","Region Dest.","center"],
+    ["stock_dest","Stock","right"], ["punto_min","Pto.Min","right"], ["necesidad","Necesidad","right"],
+    ["suc_origen","Origen","center"], ["distancia","Distancia","center"],
+    ["a_trasladar","A Trasladar","right"], ["a_comprar","A Comprar","right"], ["accion","Accion","center"]
+  ];
+  let thHtml = "";
+  encCols.forEach(function(c) {
+    const col = c[0], label = c[1], extra = c[2];
+    const clase = (extra + colCls(col)).trim();
+    const claseAttr = clase ? " class='" + clase + "'" : "";
+    thHtml += "<th" + claseAttr + " onclick='sortByBal(&quot;" + col + "&quot;)'>" + label + sortIconBal(col) + "</th>";
+  });
+
+  contenido.innerHTML = paginador +
+    "<table><thead><tr>" + thHtml + "</tr></thead><tbody>" + filas + "</tbody></table>" + paginador;
+}
+
+function irPagina(p) {
+  paginaActual = parseInt(p);
+  renderTabla();
+  document.getElementById("contenido").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function cambiarTam(n) { POR_PAGINA = parseInt(n); paginaActual = 1; renderTabla(); }
+
+// ---- Reporte Ejecutivo PDF ----
+function generarReportePDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const hoy = new Date();
+  const fechaStr = hoy.toLocaleDateString("es-VE", { year: "numeric", month: "long", day: "numeric" });
+
+  // ---- Encabezado ----
+  doc.setTextColor(0,0,0);
+  doc.setFontSize(16);
+  doc.setFont(undefined, "bold");
+  doc.text("Reporte Ejecutivo de Balanceo de Inventario", 14, 14);
+  doc.setFontSize(9);
+  doc.setFont(undefined, "normal");
+  doc.text("Agropica - Balanceo de Inventario  |  Generado el " + fechaStr, 14, 20);
+  doc.setDrawColor(0,0,0);
+  doc.setLineWidth(0.5);
+  doc.line(14, 24, 283, 24);
+
+  let y = 32;
+  doc.setTextColor(30,30,30);
+
+  // ---- Filtros aplicados ----
+  doc.setFontSize(11);
+  doc.setFont(undefined, "bold");
+  doc.text("Filtros Aplicados", 14, y);
+  y += 6;
+  doc.setFontSize(9);
+  doc.setFont(undefined, "normal");
+
+  const provTexto = provSeleccionado
+    ? (provSeleccionado + " - " + (mapaNombresProv[provSeleccionado] || ""))
+    : "Todos los proveedores";
+  const mesesVal = document.getElementById("meses").value;
+  const labelsMeses = { "3": "Ultimos 3 meses", "6": "Ultimos 6 meses", "12": "Ultimos 12 meses", "0": "Todo el historico" };
+  const periodoTexto = labelsMeses[mesesVal] || mesesVal + " meses";
+
+  const filtrosInfo = [
+    ["Proveedor:", provTexto],
+    ["Periodo de ventas:", periodoTexto],
+    ["Cobertura (dias):", document.getElementById("cobertura").value],
+  ];
+  const busq = document.getElementById("searchInput").value.trim();
+  if (busq) filtrosInfo.push(["Busqueda:", busq]);
+  if (filtroAccion) {
+    const map = { TRASLADAR: "Trasladar", COMPRAR: "Comprar", MIXTO: "Trasladar + Comprar" };
+    filtrosInfo.push(["Filtro de accion:", map[filtroAccion] || filtroAccion]);
+  }
+
+  filtrosInfo.forEach(f => {
+    doc.setFont(undefined, "bold");
+    doc.text(f[0], 14, y);
+    doc.setFont(undefined, "normal");
+    doc.text(String(f[1]), 85, y);
+    y += 5;
+  });
+
+  y += 4;
+
+  // ---- Resumen ejecutivo ----
+  const r = window._resumenGlobal || {};
+  doc.setFontSize(11);
+  doc.setFont(undefined, "bold");
+  doc.text("Resumen Ejecutivo", 14, y);
+  y += 4;
+
+  doc.autoTable({
+    startY: y,
+    head: [["SKU-Suc c/Deficit", "A Trasladar", "A Comprar", "Necesidad Total", "% Cubierto Balanceo", "Verde", "Amarillo", "Rojo"]],
+    body: [[
+      (r.total_deficit||0).toLocaleString(),
+      (r.total_trasladar||0).toLocaleString(),
+      (r.total_comprar||0).toLocaleString(),
+      (r.total_necesidad||0).toLocaleString(),
+      ((r.pct_balanceo||0)*100).toFixed(1) + "%",
+      (r.traslados_verde||0).toLocaleString(),
+      (r.traslados_amarillo||0).toLocaleString(),
+      (r.traslados_rojo||0).toLocaleString(),
+    ]],
+    theme: "grid",
+    headStyles: { fillColor: [255,255,255], textColor: [0,0,0], fontStyle: "bold", fontSize: 8, halign: "center", lineWidth: 0.3, lineColor: [0,0,0] },
+    bodyStyles: { fontSize: 8, halign: "center", lineWidth: 0.3, lineColor: [0,0,0] },
+    margin: { left: 14, right: 14 },
+  });
+
+  y = doc.lastAutoTable.finalY + 8;
+
+  // ---- Tabla detalle (respeta filtros actuales: busqueda + accion) ----
+  doc.setFontSize(11);
+  doc.setFont(undefined, "bold");
+  doc.text("Detalle de Balanceo (" + datosFiltrados.length.toLocaleString() + " registros)", 14, y);
+  y += 4;
+
+  const distTextoPdf = { verde: "Misma region", amarillo: "Cercana", rojo: "Lejana" };
+
+  const filasPdf = datosFiltrados.map(d => [
+    d.sku,
+    d.descripcion,
+    d.suc_destino,
+    d.stock_dest.toFixed(0),
+    distTextoPdf[d.distancia] || "-",
+    d.suc_origen !== "Sin origen" ? d.suc_origen : "-",
+    d.a_trasladar > 0 ? d.a_trasladar.toFixed(0) : "-",
+    d.a_comprar > 0 ? d.a_comprar.toFixed(0) : "-",
+    d.accion,
+  ]);
+
+  doc.autoTable({
+    startY: y,
+    head: [["SKU", "Descripcion", "Destino", "Stock", "Distancia", "Origen", "A Trasladar", "A Comprar", "Accion"]],
+    body: filasPdf,
+    theme: "grid",
+    headStyles: { fillColor: [255,255,255], textColor: [0,0,0], fontStyle: "bold", fontSize: 8, lineWidth: 0.3, lineColor: [0,0,0] },
+    bodyStyles: { fontSize: 7, lineWidth: 0.2, lineColor: [0,0,0] },
+    columnStyles: {
+      0: { cellWidth: 18 },
+      1: { cellWidth: 62 },
+      2: { cellWidth: 18, halign: "center" },
+      3: { cellWidth: 16, halign: "right" },
+      4: { cellWidth: 22, halign: "center" },
+      5: { cellWidth: 18, halign: "center" },
+      6: { cellWidth: 20, halign: "right" },
+      7: { cellWidth: 20, halign: "right" },
+      8: { cellWidth: 26, halign: "center" },
+    },
+    margin: { left: 14, right: 14 },
+    didDrawPage: function(data) {
+      const pageCount = doc.internal.getNumberOfPages();
+      doc.setFontSize(8);
+      doc.setTextColor(150);
+      doc.text(
+        "Pagina " + doc.internal.getCurrentPageInfo().pageNumber + " de " + pageCount,
+        280, 205, { align: "right" }
+      );
+    }
+  });
+
+  doc.autoPrint();
+  const blobUrl = doc.output("bloburl");
+  window.open(blobUrl, "_blank");
+}
+
+window.onload = function() {
+  // Leer parametros desde localStorage (configurados en Maestros y Min-Max)
+  const periodo = localStorage.getItem("periodo_ventas");
+  if (periodo !== null) document.getElementById("meses").value = periodo;
+  const fz_x = localStorage.getItem("param_fz_x"); if (fz_x) document.getElementById("fz_x").value = fz_x;
+  const fz_y = localStorage.getItem("param_fz_y"); if (fz_y) document.getElementById("fz_y").value = fz_y;
+  const fz_z = localStorage.getItem("param_fz_z"); if (fz_z) document.getElementById("fz_z").value = fz_z;
+  const fz_n = localStorage.getItem("param_fz_n"); if (fz_n) document.getElementById("fz_n").value = fz_n;
+  const lt_a = localStorage.getItem("param_lt_andino");  if (lt_a) document.getElementById("lt_andino").value = lt_a;
+  const lt_l = localStorage.getItem("param_lt_llanero"); if (lt_l) document.getElementById("lt_llanero").value = lt_l;
+  const lt_c = localStorage.getItem("param_lt_centro");  if (lt_c) document.getElementById("lt_centro").value = lt_c;
+  const lt_o = localStorage.getItem("param_lt_oriente"); if (lt_o) document.getElementById("lt_oriente").value = lt_o;
+  const cob  = localStorage.getItem("param_cobertura");  if (cob)  document.getElementById("cobertura").value = cob;
+  poblarProv();
+};
+</script>
+{% endblock %}

@@ -1,0 +1,34 @@
+﻿# Credenciales y configuracion sensible
+config.py
+.env
+
+# Datos comerciales reales (no subir a GitHub)
+Inventario.xlsx
+VentasNetas.xlsx
+StockExterno.xlsx
+ventas_temp.xlsx
+ventas_cache.json
+stock_externo_cache.json
+
+# Scripts de un solo uso (ya aplicados, no aportan valor)
+fix_*.py
+check_rutas.py
+generar_app.py
+ventas_backup.html
+gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

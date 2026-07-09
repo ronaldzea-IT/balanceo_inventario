@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block heading %}Sucursales{% endblock %}
+
+{% block content %}
+<style>
+.filtro-bar { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; }
+.filtro-bar input {
+  flex: 1; padding: 10px 16px;
+  border: 2px solid #e0e0e0; border-radius: 8px;
+  font-size: 0.95rem; outline: none;
+}
+.filtro-bar input:focus { border-color: #2E75B6; }
+.filtro-region {
+  padding: 10px 14px;
+  border: 2px solid #e0e0e0; border-radius: 8px;
+  font-size: 0.88rem; outline: none; cursor: pointer;
+  background: white; color: #333;
+}
+.filtro-region:focus { border-color: #2E75B6; }
+
+.resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.res-card { background: white; border-radius: 8px; padding: 14px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid #2E75B6; }
+.res-card.andino  { border-left-color: #375623; }
+.res-card.llanero { border-left-color: #C55A11; }
+.res-card.centro  { border-left-color: #7030A0; }
+.res-card.oriente { border-left-color: #C00000; }
+.res-label { font-size: 0.7rem; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
+.res-valor { font-size: 1.6rem; font-weight: 700; color: #1F4E79; margin-top: 4px; }
+
+table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); font-size: 0.88rem; }
+thead th { background: #1F4E79; color: white; padding: 12px 16px; text-align: left; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; }
+thead th.center { text-align: center; }
+tbody tr { border-bottom: 1px solid #f0f0f0; transition: background 0.1s; }
+tbody tr:hover { background: #f8fbff; }
+tbody tr.inactiva { opacity: 0.45; }
+tbody td { padding: 11px 16px; }
+tbody td.center { text-align: center; }
+
+.tag-region { padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+.tag-andino  { background: #E2EFDA; color: #375623; }
+.tag-llanero { background: #FCE4D6; color: #843C0C; }
+.tag-centro  { background: #EAD1F0; color: #4B1070; }
+.tag-oriente { background: #FFDCD9; color: #820000; }
+.tag-default { background: #EBF3FB; color: #1F4E79; }
+
+.cod-badge { background: #1F4E79; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.78rem; font-weight: 700; }
+.contador { font-size: 0.8rem; color: #999; margin-bottom: 10px; }
+
+/* Toggle switch */
+.switch { position: relative; display: inline-block; width: 42px; height: 24px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+  background: #ccc; border-radius: 24px; transition: 0.3s;
+}
+.slider:before {
+  position: absolute; content: ""; height: 18px; width: 18px;
+  left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s;
+}
+input:checked + .slider { background: #375623; }
+input:checked + .slider:before { transform: translateX(18px); }
+</style>
+
+<div class="resumen" id="resumen"></div>
+
+<div class="filtro-bar">
+  <input type="text" id="searchInput" placeholder="Buscar sucursal..." oninput="filtrar()">
+  <select class="filtro-region" id="filtroRegion" onchange="filtrar()">
+    <option value="">Todas las regiones</option>
+    <option value="ANDINO">Andino</option>
+    <option value="LLANERO">Llanero</option>
+    <option value="CENTRO-OCCIDENTE">Centro-Occidente</option>
+    <option value="ORIENTE">Oriente</option>
+  </select>
+</div>
+
+<div class="contador" id="contador"></div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Codigo</th>
+      <th>Nombre Sucursal</th>
+      <th>Region</th>
+      <th class="center">Activa</th>
+    </tr>
+  </thead>
+  <tbody id="tablaBody"></tbody>
+</table>
+
+<script>
+let sucursales = [];
+const estadoActiva = {};  // codigo -> true/false
+
+async function cargar() {
+  const res  = await fetch("/api/sucursales");
+  sucursales = await res.json();
+  sucursales.forEach(s => {
+    const guardado = localStorage.getItem("suc_activa_" + s.codigo);
+    estadoActiva[s.codigo] = guardado === null ? true : guardado === "1";
+  });
+  renderResumen();
+  filtrar();
+}
+
+function tagRegion(region) {
+  const r = (region || "").toUpperCase();
+  if (r.includes("ANDINO"))  return "<span class='tag-region tag-andino'>"  + region + "</span>";
+  if (r.includes("LLANERO")) return "<span class='tag-region tag-llanero'>" + region + "</span>";
+  if (r.includes("CENTRO"))  return "<span class='tag-region tag-centro'>"  + region + "</span>";
+  if (r.includes("ORIENTE")) return "<span class='tag-region tag-oriente'>" + region + "</span>";
+  return "<span class='tag-region tag-default'>" + (region || "-") + "</span>";
+}
+
+function renderResumen() {
+  const regiones = ["ANDINO","LLANERO","CENTRO-OCCIDENTE","ORIENTE"];
+  const clases   = ["andino","llanero","centro","oriente"];
+  const nombres  = ["Andino","Llanero","Centro-Occidente","Oriente"];
+  let html = "<div class='res-card'><div class='res-label'>Total Sucursales</div><div class='res-valor'>" + sucursales.length + "</div></div>";
+  regiones.forEach((r, i) => {
+    const count = sucursales.filter(s => (s.region || "").toUpperCase() === r).length;
+    html += "<div class='res-card " + clases[i] + "'><div class='res-label'>" + nombres[i] + "</div><div class='res-valor'>" + count + "</div></div>";
+  });
+  document.getElementById("resumen").innerHTML = html;
+}
+
+function toggleActiva(codigo) {
+  estadoActiva[codigo] = !estadoActiva[codigo];
+  const fila = document.querySelector("tr[data-cod='" + codigo + "']");
+  if (fila) fila.classList.toggle("inactiva", !estadoActiva[codigo]);
+}
+
+function renderTabla(data) {
+  document.getElementById("contador").textContent = "Mostrando " + data.length + " sucursal(es)";
+  const tbody = document.getElementById("tablaBody");
+  tbody.innerHTML = "";
+  data.forEach(s => {
+    const tr = document.createElement("tr");
+    tr.setAttribute("data-cod", s.codigo);
+    if (!estadoActiva[s.codigo]) tr.classList.add("inactiva");
+    tr.innerHTML =
+      "<td><span class='cod-badge'>" + s.codigo + "</span></td>" +
+      "<td><b>" + s.nombre + "</b></td>" +
+      "<td>" + tagRegion(s.region) + "</td>" +
+      "<td class='center'></td>";
+    // Toggle switch
+    const td = tr.querySelector("td.center");
+    const label = document.createElement("label");
+    label.className = "switch";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = estadoActiva[s.codigo];
+    cb.addEventListener("change", function() {
+      estadoActiva[s.codigo] = this.checked;
+      localStorage.setItem("suc_activa_" + s.codigo, this.checked ? "1" : "0");
+      tr.classList.toggle("inactiva", !this.checked);
+    });
+    const span = document.createElement("span");
+    span.className = "slider";
+    label.appendChild(cb);
+    label.appendChild(span);
+    td.appendChild(label);
+    tbody.appendChild(tr);
+  });
+}
+
+function filtrar() {
+  const q   = document.getElementById("searchInput").value.toLowerCase();
+  const reg = document.getElementById("filtroRegion").value.toUpperCase();
+  const filtradas = sucursales.filter(s => {
+    const textoOk  = (s.codigo + s.nombre).toLowerCase().includes(q);
+    const regionOk = reg ? (s.region || "").toUpperCase() === reg : true;
+    return textoOk && regionOk;
+  });
+  renderTabla(filtradas);
+}
+
+cargar();
+</script>
+{% endblock %}

@@ -1,0 +1,851 @@
+{% extends "base.html" %}
+{% block heading %}Maestros{% endblock %}
+
+{% block content %}
+<style>
+.seccion {
+  background: white; border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  margin-bottom: 28px; overflow: hidden;
+}
+.seccion-header {
+  background: #1F4E79; color: white;
+  padding: 12px 20px; font-size: 0.9rem;
+  font-weight: 700; letter-spacing: 0.5px;
+  display: flex; align-items: center; gap: 10px;
+  cursor: pointer; user-select: none;
+}
+.seccion-header .chevron { margin-left: auto; transition: transform 0.2s; }
+.seccion-header.collapsed .chevron { transform: rotate(-90deg); }
+.seccion-body { padding: 20px; }
+.seccion-body.oculto { display: none; }
+</style>
+
+<!-- ===== SECCION PROVEEDORES ===== -->
+<div class="seccion" id="secProv">
+  <div class="seccion-header" onclick="toggleSeccion('Prov')">
+    &#128230; Proveedores
+    <span class="chevron">&#9660;</span>
+  </div>
+  <div class="seccion-body" id="bodyProv">
+<style>
+.search-bar { display: flex; gap: 12px; margin-bottom: 8px; }
+.search-bar input {
+  flex: 1; padding: 10px 16px;
+  border: 2px solid #e0e0e0; border-radius: 8px;
+  font-size: 0.95rem; outline: none;
+}
+.search-bar input:focus { border-color: #2E75B6; }
+.search-hint { font-size: 0.8rem; color: #999; margin-bottom: 16px; }
+.layout { display: grid; grid-template-columns: 340px 1fr; gap: 20px; height: calc(100vh - 180px); }
+.prov-panel { background: white; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow-y: auto; }
+.prov-item { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.15s; }
+.prov-item:hover { background: #f0f7ff; }
+.prov-item.active { background: #EBF3FB; border-left: 3px solid #2E75B6; }
+.prov-item.inactivo { opacity: 0.45; }
+.prov-nombre { font-weight: 600; font-size: 0.88rem; color: #1F4E79; }
+.prov-meta { font-size: 0.75rem; color: #888; margin-top: 3px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.badge { background: #E8F4FD; color: #1F4E79; padding: 1px 7px; border-radius: 10px; font-size: 0.7rem; font-weight: 600; }
+.empty { padding: 32px; text-align: center; color: #bbb; font-size: 0.9rem; }
+.detail-panel { background: white; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); display: flex; flex-direction: column; overflow: hidden; }
+.welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #ccc; }
+.detail-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; flex-shrink: 0; }
+.detail-nombre { font-size: 1.1rem; font-weight: 700; color: #1F4E79; }
+.detail-meta { font-size: 0.8rem; color: #999; margin-top: 4px; }
+.art-count { background: #2E75B6; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; margin-left: 6px; }
+.art-filter { padding: 10px 16px; border-bottom: 1px solid #f0f0f0; display: flex; gap: 12px; align-items: center; flex-shrink: 0; }
+.art-filter input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 0.85rem; outline: none; }
+.art-filter input[type=text]:focus { border-color: #2E75B6; }
+.chk-todos-label { font-size: 0.85rem; color: #555; display: flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+.chk-todos-label input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
+.tabla-wrap { flex: 1; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.83rem; table-layout: fixed; }
+thead th { background: #1F4E79; color: white; padding: 10px 12px; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; position: sticky; top: 0; z-index: 1; overflow: hidden; white-space: nowrap; }
+thead th.center { text-align: center; }
+thead th.right { text-align: right; }
+col.col-sku  { width: 90px; }
+col.col-desc { width: auto; }
+col.col-lin  { width: 110px; }
+col.col-cat  { width: 110px; }
+col.col-uni  { width: 80px; }
+col.col-pre  { width: 90px; }
+col.col-act  { width: 70px; }
+tbody tr { border-bottom: 1px solid #f5f5f5; transition: background 0.1s; }
+tbody tr:hover { background: #f8fbff; }
+tbody td { padding: 9px 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+tbody td.center { text-align: center; }
+tbody td.right { text-align: right; }
+.tag-linea { background: #EBF3FB; color: #1F4E79; padding: 2px 7px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; }
+.spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #c8e0f5; border-top-color: #2E75B6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.switch { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; border-radius: 20px; transition: 0.3s; }
+.slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s; }
+input:checked + .slider { background: #375623; }
+input:checked + .slider:before { transform: translateX(16px); }
+.paginador-art { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-top: 1px solid #f0f0f0; background: #fafafa; flex-shrink: 0; font-size: 0.8rem; color: #888; }
+.pag-select-art { padding: 5px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.8rem; outline: none; cursor: pointer; background: white; }
+.pag-select-art:focus { border-color: #2E75B6; }
+</style>
+
+<div class="search-bar">
+  <input id="searchInput" type="text" placeholder="Buscar por nombre o codigo de proveedor..." autofocus>
+</div>
+<div class="search-hint">Escribe minimo 2 caracteres para buscar</div>
+
+<div class="layout">
+  <div class="prov-panel" id="provPanel">
+    <div class="empty">Escribe para buscar proveedores</div>
+  </div>
+  <div class="detail-panel" id="detailPanel">
+    <div class="welcome"><p>Selecciona un proveedor para ver sus articulos</p></div>
+  </div>
+</div>
+
+<script>
+let searchTimer = null;
+let activeItem  = null;
+let todosArts   = [];
+let artsPagina  = 1;
+let ARTS_POR_PAG = 100;
+
+document.getElementById("searchInput").addEventListener("input", function() {
+  clearTimeout(searchTimer);
+  const q = this.value.trim();
+  if (q.length < 2) {
+    cargarInicial();
+    return;
+  }
+  searchTimer = setTimeout(() => buscar(q), 300);
+});
+
+async function cargarInicial() {
+  const panel = document.getElementById("provPanel");
+  panel.innerHTML = "<div class='empty'><div class='spinner'></div></div>";
+
+  // Leer proveedor activo
+  const activos = Object.keys(localStorage)
+    .filter(k => k.startsWith("prov_activo_") && localStorage.getItem(k) === "1")
+    .map(k => k.replace("prov_activo_", ""));
+  const codigoActivo = activos.length > 0 ? activos[0] : null;
+
+  // Traer lista completa de proveedores
+  const res  = await fetch("/api/proveedores/lista");
+  const lista = await res.json();
+
+  if (!lista.length) {
+    panel.innerHTML = "<div class='empty'>No hay proveedores disponibles</div>";
+    return;
+  }
+
+  // Convertir formato lista -> formato buscar (agregar nro_facturas y ultima_compra)
+  // Ordenar: activo primero, resto alfabetico
+  const activo = lista.find(p => p.codigo === codigoActivo);
+  const resto  = lista.filter(p => p.codigo !== codigoActivo);
+  const ordenados = activo ? [activo, ...resto] : lista;
+
+  panel.innerHTML = "";
+  ordenados.forEach(p => {
+    // lista solo trae codigo y nombre, simular formato de buscar
+    const prov = { codigo: p.codigo, nombre: p.nombre, nro_facturas: "", ultima_compra: "" };
+    renderProvItem(prov, panel);
+  });
+
+  // Auto-cargar articulos y seleccionar visualmente el activo
+  if (codigoActivo) {
+    const items = panel.querySelectorAll(".prov-item");
+    if (items.length > 0) {
+      items[0].classList.add("active");
+      activeItem = items[0];
+      const a = lista.find(p => p.codigo === codigoActivo);
+      if (a) verArticulos(a.codigo, a.nombre, "", items[0]);
+    }
+  }
+}
+
+function renderProvItem(p, panel) {
+  const div = document.createElement("div");
+  div.className = "prov-item" + (getProvActivo(p.codigo) ? "" : " inactivo");
+  div.innerHTML =
+    "<div class='prov-nombre'>" + p.nombre + "</div>" +
+    "<div class='prov-meta'>" +
+    "<span>" + p.codigo + "</span>" +
+    "<span class='badge'>" + p.nro_facturas + " facturas</span>" +
+    "<span>" + (p.ultima_compra || "") + "</span>" +
+    "</div>";
+  const meta = div.querySelector(".prov-meta");
+  const label = document.createElement("label");
+  label.className = "switch";
+  label.style.marginLeft = "auto";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = getProvActivo(p.codigo);
+  cb.addEventListener("change", function(e) {
+    e.stopPropagation();
+    if (this.checked) {
+      // Desactivar TODOS los demas (DOM + localStorage)
+      Object.keys(localStorage)
+        .filter(k => k.startsWith("prov_activo_"))
+        .forEach(k => localStorage.setItem(k, "0"));
+      document.querySelectorAll(".prov-item").forEach(item => {
+        const otherCb = item.querySelector("input[type=checkbox]");
+        if (otherCb && otherCb !== this) {
+          otherCb.checked = false;
+          item.classList.add("inactivo");
+        }
+      });
+    }
+    setProvActivo(p.codigo, this.checked);
+    div.classList.toggle("inactivo", !this.checked);
+    if (this.checked) {
+      verArticulos(p.codigo, p.nombre, p.nro_facturas, div);
+    } else {
+      if (activeItem) activeItem.classList.remove("active");
+      activeItem = null;
+      document.getElementById("detailPanel").innerHTML = "<div class='welcome'><p>Selecciona un proveedor para ver sus articulos</p></div>";
+    }
+  });
+  cb._codigo = p.codigo;
+  const span = document.createElement("span");
+  span.className = "slider";
+  label.appendChild(cb);
+  label.appendChild(span);
+  meta.appendChild(label);
+  div.addEventListener("click", function(e) {
+    if (e.target.closest(".switch")) return;
+    verArticulos(p.codigo, p.nombre, p.nro_facturas, div);
+  });
+  panel.appendChild(div);
+}
+
+window.onload = cargarInicial;
+
+function getProvActivo(codigo) {
+  const v = localStorage.getItem("prov_activo_" + codigo);
+  return v === null ? false : v === "1";
+}
+
+function setProvActivo(codigo, activo) {
+  localStorage.setItem("prov_activo_" + codigo, activo ? "1" : "0");
+}
+
+async function buscar(q) {
+  const panel = document.getElementById("provPanel");
+  panel.innerHTML = "<div class='empty'><div class='spinner'></div></div>";
+  const res  = await fetch("/api/proveedores/buscar?q=" + encodeURIComponent(q));
+  const data = await res.json();
+  if (!data.length) {
+    panel.innerHTML = "<div class='empty'>No se encontraron proveedores</div>";
+    return;
+  }
+  // Activos primero
+  const activos = data.filter(p => getProvActivo(p.codigo));
+  const resto   = data.filter(p => !getProvActivo(p.codigo));
+  panel.innerHTML = "";
+  [...activos, ...resto].forEach(p => renderProvItem(p, panel));
+}
+
+async function verArticulos(codigo, nombre, facturas, el) {
+  if (activeItem) activeItem.classList.remove("active");
+  el.classList.add("active");
+  activeItem = el;
+  const detail = document.getElementById("detailPanel");
+  detail.innerHTML = "<div class='welcome'><div class='spinner'></div></div>";
+  const res  = await fetch("/api/proveedores/" + encodeURIComponent(codigo) + "/articulos");
+  todosArts = await res.json();
+  artsPagina = 1;
+  const hayActivos = todosArts.some(a => a.estatus === "Activo");
+
+  detail.innerHTML = "";
+
+  const header = document.createElement("div");
+  header.className = "detail-header";
+  header.innerHTML =
+    "<div class='detail-nombre'>" + nombre + "</div>" +
+    "<div class='detail-meta'>Codigo: " + codigo + " &nbsp;|&nbsp; " + facturas + " facturas &nbsp;|&nbsp; <b>" + todosArts.length + "</b> articulos<span class='art-count'>" + todosArts.length + "</span></div>";
+  detail.appendChild(header);
+
+  const filtroDiv = document.createElement("div");
+  filtroDiv.className = "art-filter";
+  const searchArt = document.createElement("input");
+  searchArt.type = "text";
+  searchArt.placeholder = "Filtrar articulos...";
+  searchArt.addEventListener("input", function() {
+    artsPagina = 1;
+    renderArts(this.value.toLowerCase());
+  });
+  const todosLabel = document.createElement("label");
+  todosLabel.className = "chk-todos-label";
+  const chkTodos = document.createElement("input");
+  chkTodos.type = "checkbox";
+  chkTodos.id = "chkTodos";
+  chkTodos.checked = hayActivos;
+  chkTodos.addEventListener("change", function() { seleccionarTodos(this.checked); });
+  todosLabel.appendChild(chkTodos);
+  todosLabel.appendChild(document.createTextNode(" Todos"));
+  filtroDiv.appendChild(searchArt);
+  filtroDiv.appendChild(todosLabel);
+  detail.appendChild(filtroDiv);
+
+  const pagTop = document.createElement("div");
+  pagTop.className = "paginador-art";
+  pagTop.id = "pagTop";
+  detail.appendChild(pagTop);
+
+  const tablaWrap = document.createElement("div");
+  tablaWrap.className = "tabla-wrap";
+  tablaWrap.id = "tablaWrap";
+  detail.appendChild(tablaWrap);
+
+  const pagBot = document.createElement("div");
+  pagBot.className = "paginador-art";
+  pagBot.id = "pagBot";
+  detail.appendChild(pagBot);
+
+  renderArts("");
+}
+
+let sortColArt = "";
+let sortAscArt = true;
+
+function sortByArt(col) {
+  if (sortColArt === col) sortAscArt = !sortAscArt;
+  else { sortColArt = col; sortAscArt = true; }
+  const q = document.querySelector(".art-filter input[type=text]");
+  renderArts(q ? q.value.toLowerCase() : "");
+}
+function sortIconArt(col) {
+  if (sortColArt !== col) return " &#8597;";
+  return sortAscArt ? " &#8593;" : " &#8595;";
+}
+
+function getArtsFiltrados(q) {
+  let lista = !q ? todosArts.slice() : todosArts.filter(a => (a.sku + a.descripcion + (a.linea||"") + (a.categoria||"")).toLowerCase().includes(q));
+  if (sortColArt) {
+    lista.sort((a, b) => {
+      let va = a[sortColArt], vb = b[sortColArt];
+      if (sortColArt === "precio") { va = parseFloat((va||"0").toString().replace(/,/g,"")); vb = parseFloat((vb||"0").toString().replace(/,/g,"")); }
+      else if (sortColArt === "estatus") { va = va || ""; vb = vb || ""; }
+      else { va = (va || "").toString().toLowerCase(); vb = (vb || "").toString().toLowerCase(); }
+      if (va < vb) return sortAscArt ? -1 : 1;
+      if (va > vb) return sortAscArt ? 1 : -1;
+      return 0;
+    });
+  }
+  return lista;
+}
+
+function renderArts(q) {
+  const filtrados = getArtsFiltrados(q);
+  const total = filtrados.length;
+  const totalPags = Math.max(1, Math.ceil(total / ARTS_POR_PAG));
+  if (artsPagina > totalPags) artsPagina = totalPags;
+  const inicio = (artsPagina - 1) * ARTS_POR_PAG;
+  const pagina = filtrados.slice(inicio, inicio + ARTS_POR_PAG);
+
+  // Paginador
+  let opciones = "";
+  for (let i = 1; i <= totalPags; i++) {
+    opciones += "<option value='" + i + "'" + (i === artsPagina ? " selected" : "") + ">Pag " + i + " de " + totalPags + "</option>";
+  }
+  const selectorTamArt =
+    "<select class='pag-select-art' onchange='cambiarTamPagArt(this.value)'>" +
+    [25,50,100].map(n => "<option value='" + n + "'" + (n===ARTS_POR_PAG?" selected":"") + ">" + n + " / pag</option>").join("") +
+    "</select>";
+  const paginadorHTML =
+    "<span>" + total.toLocaleString() + " articulos | mostrando " + (inicio+1) + "-" + Math.min(inicio+ARTS_POR_PAG, total) + "</span>" +
+    "<div style='display:flex;gap:8px;align-items:center;'>" +
+    selectorTamArt +
+    "<select class='pag-select-art' onchange='cambiarPagArt(this.value)'>" + opciones + "</select>" +
+    "</div>";
+  document.getElementById("pagTop").innerHTML = paginadorHTML;
+  document.getElementById("pagBot").innerHTML = paginadorHTML;
+
+  // Tabla
+  const wrap = document.getElementById("tablaWrap");
+  wrap.innerHTML = "";
+  if (!pagina.length) {
+    wrap.innerHTML = "<div class='empty' style='padding:40px;'>Sin articulos</div>";
+    return;
+  }
+  const table = document.createElement("table");
+  table.innerHTML = "<colgroup>" +
+    "<col class='col-sku'><col class='col-desc'><col class='col-lin'><col class='col-cat'><col class='col-uni'><col class='col-pre'><col class='col-act'>" +
+    "</colgroup>" +
+    "<thead><tr>" +
+    "<th onclick=\"sortByArt('sku')\" style='cursor:pointer'>SKU" + sortIconArt("sku") + "</th>" +
+    "<th onclick=\"sortByArt('descripcion')\" style='cursor:pointer'>Descripcion" + sortIconArt("descripcion") + "</th>" +
+    "<th onclick=\"sortByArt('linea')\" style='cursor:pointer'>Linea" + sortIconArt("linea") + "</th>" +
+    "<th onclick=\"sortByArt('categoria')\" style='cursor:pointer'>Categoria" + sortIconArt("categoria") + "</th>" +
+    "<th onclick=\"sortByArt('unidad')\" style='cursor:pointer'>Unidad" + sortIconArt("unidad") + "</th>" +
+    "<th class='right' onclick=\"sortByArt('precio')\" style='cursor:pointer'>Precio" + sortIconArt("precio") + "</th>" +
+    "<th class='center' onclick=\"sortByArt('estatus')\" style='cursor:pointer'>Activo" + sortIconArt("estatus") + "</th>" +
+    "</tr></thead>";
+  const tbody = document.createElement("tbody");
+  tbody.id = "artBody";
+  pagina.forEach(a => {
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      "<td><b>" + a.sku + "</b></td>" +
+      "<td title='" + a.descripcion.split('*')[0].trim() + "'>" + a.descripcion.split('*')[0].trim() + "</td>" +
+      "<td><span class='tag-linea'>" + (a.linea || "-") + "</span></td>" +
+      "<td>" + (a.categoria || "-") + "</td>" +
+      "<td>" + (a.unidad || "-") + "</td>" +
+      "<td class='right'>$ " + a.precio + "</td>" +
+      "<td class='center'></td>";
+    const td = tr.querySelector("td.center");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = a.estatus === "Activo";
+    cb.style.cssText = "width:16px;height:16px;cursor:pointer;";
+    cb.addEventListener("change", function() { cambiarEstatus(a.sku, this.checked); });
+    td.appendChild(cb);
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+}
+
+function cambiarTamPagArt(n) {
+  ARTS_POR_PAG = parseInt(n);
+  artsPagina = 1;
+  const q = document.querySelector(".art-filter input[type=text]");
+  renderArts(q ? q.value.toLowerCase() : "");
+}
+
+function cambiarPagArt(p, q) {
+  artsPagina = parseInt(p);
+  renderArts(q || "");
+}
+
+function seleccionarTodos(checked) {
+  document.querySelectorAll("#artBody input[type=checkbox]").forEach(cb => { cb.checked = checked; });
+}
+
+async function cambiarEstatus(sku, activo) {
+  const res = await fetch("/api/articulos/estatus", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sku, activo })
+  });
+  const data = await res.json();
+  if (!data.ok) alert("Error al actualizar " + sku);
+}
+</script>
+  </div>
+</div>
+
+<!-- ===== SECCION VENDEDORES ===== -->
+<div class="seccion" id="secVen">
+  <div class="seccion-header" onclick="toggleSeccion('Ven')">
+    &#128100; Vendedores
+    <span class="chevron">&#9660;</span>
+  </div>
+  <div class="seccion-body" id="bodyVen">
+    <style>
+    .ven-toolbar { display: flex; gap: 12px; margin-bottom: 16px; }
+    .ven-toolbar input { flex: 1; padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; outline: none; }
+    .ven-toolbar input:focus { border-color: #2E75B6; }
+    .ven-acciones { display: flex; gap: 10px; }
+    .ven-btn { padding: 8px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.8rem; cursor: pointer; background: white; white-space: nowrap; }
+    .ven-btn:hover { border-color: #2E75B6; }
+    .ven-lista { background: white; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow: hidden; }
+    .ven-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid #f0f0f0; }
+    .ven-item:last-child { border-bottom: none; }
+    .ven-item:hover { background: #f8fbff; }
+    .ven-item.inactivo .ven-nombre { opacity: 0.45; }
+    .ven-nombre { font-size: 0.88rem; color: #333; }
+    .ven-switch { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
+    .ven-switch input { opacity: 0; width: 0; height: 0; }
+    .ven-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; border-radius: 20px; transition: 0.3s; }
+    .ven-slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s; }
+    .ven-switch input:checked + .ven-slider { background: #375623; }
+    .ven-switch input:checked + .ven-slider:before { transform: translateX(16px); }
+    .ven-contador { font-size: 0.8rem; color: #999; margin-bottom: 10px; }
+    .paginador { display: flex; align-items: center; justify-content: space-between; padding: 8px 4px; margin: 8px 0; font-size: 0.82rem; color: #666; }
+    </style>
+    <div class="ven-toolbar">
+      <input type="text" id="searchVenMaestro" placeholder="Buscar vendedor..." oninput="filtrarVendedores()">
+      <div class="ven-acciones">
+        <button class="ven-btn" onclick="activarTodosVendedores()">Activar Todos</button>
+        <button class="ven-btn" onclick="desactivarTodosVendedores()">Desactivar Todos</button>
+      </div>
+    </div>
+    <div class="ven-contador" id="venContador"></div>
+    <div class="paginador" id="venPagTop"></div>
+    <div class="ven-lista" id="venLista"></div>
+    <div class="paginador" id="venPagBot"></div>
+  </div>
+</div>
+
+<!-- ===== SECCION SUCURSALES ===== -->
+<div class="seccion" id="secSuc">
+  <div class="seccion-header" onclick="toggleSeccion('Suc')">
+    &#127970; Sucursales
+    <span class="chevron">&#9660;</span>
+  </div>
+  <div class="seccion-body" id="bodySuc">
+<style>
+.filtro-bar { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; }
+.filtro-bar input {
+  flex: 1; padding: 10px 16px;
+  border: 2px solid #e0e0e0; border-radius: 8px;
+  font-size: 0.95rem; outline: none;
+}
+.filtro-bar input:focus { border-color: #2E75B6; }
+.filtro-region {
+  padding: 10px 14px;
+  border: 2px solid #e0e0e0; border-radius: 8px;
+  font-size: 0.88rem; outline: none; cursor: pointer;
+  background: white; color: #333;
+}
+.filtro-region:focus { border-color: #2E75B6; }
+
+.resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.res-card { background: white; border-radius: 8px; padding: 14px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid #2E75B6; }
+.res-card.andino  { border-left-color: #375623; }
+.res-card.llanero { border-left-color: #C55A11; }
+.res-card.centro  { border-left-color: #7030A0; }
+.res-card.oriente { border-left-color: #C00000; }
+.res-label { font-size: 0.7rem; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
+.res-valor { font-size: 1.6rem; font-weight: 700; color: #1F4E79; margin-top: 4px; }
+
+table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); font-size: 0.88rem; }
+thead th { background: #1F4E79; color: white; padding: 12px 16px; text-align: left; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; }
+thead th.center { text-align: center; }
+tbody tr { border-bottom: 1px solid #f0f0f0; transition: background 0.1s; }
+tbody tr:hover { background: #f8fbff; }
+tbody tr.inactiva { opacity: 0.45; }
+tbody td { padding: 11px 16px; }
+tbody td.center { text-align: center; }
+
+.tag-region { padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+.tag-andino  { background: #E2EFDA; color: #375623; }
+.tag-llanero { background: #FCE4D6; color: #843C0C; }
+.tag-centro  { background: #EAD1F0; color: #4B1070; }
+.tag-oriente { background: #FFDCD9; color: #820000; }
+.tag-default { background: #EBF3FB; color: #1F4E79; }
+
+.cod-badge { background: #1F4E79; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.78rem; font-weight: 700; }
+.contador { font-size: 0.8rem; color: #999; margin-bottom: 10px; }
+
+/* Toggle switch */
+.switch { position: relative; display: inline-block; width: 42px; height: 24px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+  background: #ccc; border-radius: 24px; transition: 0.3s;
+}
+.slider:before {
+  position: absolute; content: ""; height: 18px; width: 18px;
+  left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s;
+}
+input:checked + .slider { background: #375623; }
+input:checked + .slider:before { transform: translateX(18px); }
+</style>
+
+<div class="resumen" id="resumen"></div>
+
+<div class="filtro-bar">
+  <input type="text" id="searchInput" placeholder="Buscar sucursal..." oninput="filtrar()">
+  <select class="filtro-region" id="filtroRegion" onchange="filtrar()">
+    <option value="">Todas las regiones</option>
+    <option value="ANDINO">Andino</option>
+    <option value="LLANERO">Llanero</option>
+    <option value="CENTRO-OCCIDENTE">Centro-Occidente</option>
+    <option value="ORIENTE">Oriente</option>
+  </select>
+</div>
+
+<div class="contador" id="contador"></div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Codigo</th>
+      <th>Nombre Sucursal</th>
+      <th>Region</th>
+      <th class="center">Activa</th>
+    </tr>
+  </thead>
+  <tbody id="tablaBody"></tbody>
+</table>
+
+<script>
+let sucursales = [];
+const estadoActiva = {};  // codigo -> true/false
+
+async function cargar() {
+  const res  = await fetch("/api/sucursales");
+  sucursales = await res.json();
+  sucursales.forEach(s => {
+    const guardado = localStorage.getItem("suc_activa_" + s.codigo);
+    estadoActiva[s.codigo] = guardado === null ? true : guardado === "1";
+  });
+  renderResumen();
+  filtrar();
+}
+
+function tagRegion(region) {
+  const r = (region || "").toUpperCase();
+  if (r.includes("ANDINO"))  return "<span class='tag-region tag-andino'>"  + region + "</span>";
+  if (r.includes("LLANERO")) return "<span class='tag-region tag-llanero'>" + region + "</span>";
+  if (r.includes("CENTRO"))  return "<span class='tag-region tag-centro'>"  + region + "</span>";
+  if (r.includes("ORIENTE")) return "<span class='tag-region tag-oriente'>" + region + "</span>";
+  return "<span class='tag-region tag-default'>" + (region || "-") + "</span>";
+}
+
+function renderResumen() {
+  const regiones = ["ANDINO","LLANERO","CENTRO-OCCIDENTE","ORIENTE"];
+  const clases   = ["andino","llanero","centro","oriente"];
+  const nombres  = ["Andino","Llanero","Centro-Occidente","Oriente"];
+  let html = "<div class='res-card'><div class='res-label'>Total Sucursales</div><div class='res-valor'>" + sucursales.length + "</div></div>";
+  regiones.forEach((r, i) => {
+    const count = sucursales.filter(s => (s.region || "").toUpperCase() === r).length;
+    html += "<div class='res-card " + clases[i] + "'><div class='res-label'>" + nombres[i] + "</div><div class='res-valor'>" + count + "</div></div>";
+  });
+  document.getElementById("resumen").innerHTML = html;
+}
+
+function toggleActiva(codigo) {
+  estadoActiva[codigo] = !estadoActiva[codigo];
+  const fila = document.querySelector("tr[data-cod='" + codigo + "']");
+  if (fila) fila.classList.toggle("inactiva", !estadoActiva[codigo]);
+}
+
+function renderTabla(data) {
+  document.getElementById("contador").textContent = "Mostrando " + data.length + " sucursal(es)";
+  const tbody = document.getElementById("tablaBody");
+  tbody.innerHTML = "";
+  data.forEach(s => {
+    const tr = document.createElement("tr");
+    tr.setAttribute("data-cod", s.codigo);
+    if (!estadoActiva[s.codigo]) tr.classList.add("inactiva");
+    tr.innerHTML =
+      "<td><span class='cod-badge'>" + s.codigo + "</span></td>" +
+      "<td><b>" + s.nombre + "</b></td>" +
+      "<td>" + tagRegion(s.region) + "</td>" +
+      "<td class='center'></td>";
+    // Toggle switch
+    const td = tr.querySelector("td.center");
+    const label = document.createElement("label");
+    label.className = "switch";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = estadoActiva[s.codigo];
+    cb.addEventListener("change", function() {
+      estadoActiva[s.codigo] = this.checked;
+      localStorage.setItem("suc_activa_" + s.codigo, this.checked ? "1" : "0");
+      tr.classList.toggle("inactiva", !this.checked);
+    });
+    const span = document.createElement("span");
+    span.className = "slider";
+    label.appendChild(cb);
+    label.appendChild(span);
+    td.appendChild(label);
+    tbody.appendChild(tr);
+  });
+}
+
+function filtrar() {
+  const q   = document.getElementById("searchInput").value.toLowerCase();
+  const reg = document.getElementById("filtroRegion").value.toUpperCase();
+  const filtradas = sucursales.filter(s => {
+    const textoOk  = (s.codigo + s.nombre).toLowerCase().includes(q);
+    const regionOk = reg ? (s.region || "").toUpperCase() === reg : true;
+    return textoOk && regionOk;
+  });
+  renderTabla(filtradas);
+}
+
+cargar();
+</script>
+  </div>
+</div>
+
+<!-- ===== SECCION PERIODO DE VENTAS ===== -->
+<div class="seccion" id="secPeriodo">
+  <div class="seccion-header" onclick="toggleSeccion('Periodo')">
+    &#128197; Periodo de Ventas
+    <span class="chevron">&#9660;</span>
+  </div>
+  <div class="seccion-body" id="bodyPeriodo">
+    <style>
+    .periodo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
+    .periodo-card {
+      border: 2px solid #e0e0e0; border-radius: 10px; padding: 16px 20px;
+      cursor: pointer; transition: all 0.2s; text-align: center;
+    }
+    .periodo-card:hover { border-color: #2E75B6; background: #f0f7ff; }
+    .periodo-card.activo { border-color: #2E75B6; background: #EBF3FB; }
+    .periodo-card .periodo-valor { font-size: 1.8rem; font-weight: 700; color: #1F4E79; }
+    .periodo-card .periodo-label { font-size: 0.8rem; color: #888; margin-top: 4px; }
+    .periodo-guardado { font-size: 0.85rem; color: #375623; font-weight: 600; margin-top: 8px; }
+    </style>
+    <p style="font-size:0.88rem;color:#666;margin-bottom:16px;">
+      Selecciona el periodo de ventas que se usara en los modulos de <b>Ventas</b>, <b>Min-Max</b> y <b>Balanceo</b>.
+    </p>
+    <div class="periodo-grid">
+      <div class="periodo-card" id="p3"  onclick="setPeriodo(3)">
+        <div class="periodo-valor">3</div>
+        <div class="periodo-label">Ultimos 3 meses</div>
+      </div>
+      <div class="periodo-card" id="p6"  onclick="setPeriodo(6)">
+        <div class="periodo-valor">6</div>
+        <div class="periodo-label">Ultimos 6 meses</div>
+      </div>
+      <div class="periodo-card" id="p12" onclick="setPeriodo(12)">
+        <div class="periodo-valor">12</div>
+        <div class="periodo-label">Ultimos 12 meses</div>
+      </div>
+      <div class="periodo-card" id="p0"  onclick="setPeriodo(0)">
+        <div class="periodo-valor">&#8734;</div>
+        <div class="periodo-label">Todo el historico</div>
+      </div>
+    </div>
+    <div class="periodo-guardado" id="periodoGuardado"></div>
+  </div>
+</div>
+
+<script>
+// ---- Toggle secciones ----
+function toggleSeccion(key) {
+  const body   = document.getElementById("body" + key);
+  const header = body.previousElementSibling;
+  body.classList.toggle("oculto");
+  header.classList.toggle("collapsed");
+}
+
+// ---- Periodo de ventas ----
+function setPeriodo(meses) {
+  localStorage.setItem("periodo_ventas", meses);
+  actualizarPeriodoUI();
+}
+
+function actualizarPeriodoUI() {
+  const v = parseInt(localStorage.getItem("periodo_ventas") || "12");
+  [3, 6, 12, 0].forEach(n => {
+    const el = document.getElementById("p" + n);
+    if (el) el.classList.toggle("activo", v === n);
+  });
+  const labels = { 3: "Ultimos 3 meses", 6: "Ultimos 6 meses", 12: "Ultimos 12 meses", 0: "Todo el historico" };
+  document.getElementById("periodoGuardado").textContent =
+    "&#10003; Periodo activo: " + (labels[v] || v + " meses");
+}
+
+// ---- Vendedores ----
+let todosVendedoresMaestro = [];
+
+function getVenActivo(nombre) {
+  const v = localStorage.getItem("ven_activo_" + nombre);
+  return v === null ? true : v === "1";
+}
+function setVenActivo(nombre, activo) {
+  localStorage.setItem("ven_activo_" + nombre, activo ? "1" : "0");
+}
+
+let venPagina = 1;
+let VEN_POR_PAG = 25;
+
+async function cargarVendedores() {
+  const res = await fetch("/api/vendedores/lista");
+  todosVendedoresMaestro = await res.json();
+  venPagina = 1;
+  renderVendedores(todosVendedoresMaestro);
+}
+
+function renderVendedores(lista) {
+  const cont = document.getElementById("venLista");
+  const activos = lista.filter(v => getVenActivo(v)).length;
+  document.getElementById("venContador").textContent =
+    activos + " de " + lista.length + " vendedores activos";
+
+  const totalPags = Math.max(1, Math.ceil(lista.length / VEN_POR_PAG));
+  if (venPagina > totalPags) venPagina = totalPags;
+  const inicio = (venPagina - 1) * VEN_POR_PAG;
+  const pagina = lista.slice(inicio, inicio + VEN_POR_PAG);
+
+  let opciones = "";
+  for (let i = 1; i <= totalPags; i++) {
+    opciones += "<option value='" + i + "'" + (i === venPagina ? " selected" : "") + ">Pag " + i + " de " + totalPags + "</option>";
+  }
+  const selectorTam =
+    "<select class='pag-select-art' onchange='cambiarTamVen(this.value)'>" +
+    [10,25,50,100].map(n => "<option value='" + n + "'" + (n===VEN_POR_PAG?" selected":"") + ">" + n + " / pag</option>").join("") +
+    "</select>";
+  const paginadorHTML =
+    "<span>" + lista.length.toLocaleString() + " vendedores | mostrando " + (lista.length ? inicio+1 : 0) + "-" + Math.min(inicio+VEN_POR_PAG, lista.length) + "</span>" +
+    "<div style='display:flex;gap:8px;align-items:center;'>" + selectorTam +
+    "<select class='pag-select-art' onchange='irPaginaVen(this.value)'>" + opciones + "</select></div>";
+  document.getElementById("venPagTop").innerHTML = paginadorHTML;
+  document.getElementById("venPagBot").innerHTML = paginadorHTML;
+
+  cont.innerHTML = "";
+  pagina.forEach(nombre => {
+    const div = document.createElement("div");
+    div.className = "ven-item" + (getVenActivo(nombre) ? "" : " inactivo");
+    const span = document.createElement("span");
+    span.className = "ven-nombre";
+    span.textContent = nombre;
+    const label = document.createElement("label");
+    label.className = "ven-switch";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = getVenActivo(nombre);
+    cb.addEventListener("change", function() {
+      setVenActivo(nombre, this.checked);
+      div.classList.toggle("inactivo", !this.checked);
+      const listaActual = filtroVendedoresActual();
+      const act = listaActual.filter(v => getVenActivo(v)).length;
+      document.getElementById("venContador").textContent =
+        act + " de " + listaActual.length + " vendedores activos";
+    });
+    const slider = document.createElement("span");
+    slider.className = "ven-slider";
+    label.appendChild(cb);
+    label.appendChild(slider);
+    div.appendChild(span);
+    div.appendChild(label);
+    cont.appendChild(div);
+  });
+}
+
+function filtroVendedoresActual() {
+  const q = document.getElementById("searchVenMaestro").value.toLowerCase();
+  return q ? todosVendedoresMaestro.filter(v => v.toLowerCase().includes(q)) : todosVendedoresMaestro;
+}
+
+function irPaginaVen(p) {
+  venPagina = parseInt(p);
+  renderVendedores(filtroVendedoresActual());
+}
+function cambiarTamVen(n) {
+  VEN_POR_PAG = parseInt(n);
+  venPagina = 1;
+  renderVendedores(filtroVendedoresActual());
+}
+
+function filtrarVendedores() {
+  venPagina = 1;
+  renderVendedores(filtroVendedoresActual());
+}
+
+function activarTodosVendedores() {
+  todosVendedoresMaestro.forEach(v => setVenActivo(v, true));
+  filtrarVendedores();
+}
+function desactivarTodosVendedores() {
+  todosVendedoresMaestro.forEach(v => setVenActivo(v, false));
+  filtrarVendedores();
+}
+
+window.addEventListener("load", function() {
+  actualizarPeriodoUI();
+  cargarInicial();
+  cargar();
+  cargarVendedores();
+});
+</script>
+
+{% endblock %}

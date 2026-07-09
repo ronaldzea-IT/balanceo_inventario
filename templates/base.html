@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agropica</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; display: flex; }
+.sidebar {
+  width: 220px; min-height: 100vh;
+  background: linear-gradient(180deg, #1F4E79 0%, #163a5f 100%);
+  color: white; display: flex; flex-direction: column;
+  position: fixed; top: 0; left: 0; z-index: 100;
+}
+.sidebar-logo { padding: 24px 20px 16px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+.sidebar-logo h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: 1px; }
+.sidebar-logo span { font-size: 0.72rem; opacity: 0.6; }
+.nav-section { padding: 12px 0; }
+.nav-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; opacity: 0.5; padding: 8px 20px 4px; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 20px; font-size: 0.88rem;
+  color: rgba(255,255,255,0.8); text-decoration: none;
+  transition: all 0.2s; border-left: 3px solid transparent;
+}
+.nav-item:hover { background: rgba(255,255,255,0.1); color: white; }
+.nav-item.active { background: rgba(255,255,255,0.15); color: white; border-left-color: #5BA3D9; }
+.nav-parent { cursor: pointer; justify-content: space-between; display: flex; align-items: center; }
+.nav-arrow { font-size: 0.6rem; opacity: 0.7; transition: transform 0.2s; }
+.nav-sub { padding-left: 32px; font-size: 0.82rem; opacity: 0.85; }
+.nav-sub:hover { opacity: 1; }
+.main { margin-left: 220px; flex: 1; min-width: 0; min-height: 100vh; display: flex; flex-direction: column; }
+.topbar {
+  background: white; padding: 14px 28px;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex; align-items: center; justify-content: space-between;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.topbar h1 { font-size: 1.1rem; font-weight: 700; color: #1F4E79; }
+.topbar .fecha { font-size: 0.8rem; color: #999; }
+.content { padding: 24px 28px; flex: 1; min-width: 0; overflow-x: hidden; }
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <h2>AGROPICA</h2>
+    <span>Balanceo de Inventario</span>
+  </div>
+  <nav class="nav-section">
+    <div class="nav-label">Principal</div>
+    <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}">Dashboard</a>
+  </nav>
+  <nav class="nav-section">
+    <div class="nav-label">Maestros</div>
+    <a href="/maestros" class="nav-item {% if request.path == '/maestros' %}active{% endif %}">Maestros</a>
+  </nav>
+  <nav class="nav-section">
+    <div class="nav-label">Analisis</div>
+    <div class="nav-submenu">
+      <div class="nav-item nav-parent {% if request.path in ['/ventas', '/matriz', '/estadisticas'] %}active{% endif %}" onclick="toggleSubmenu('subVentas')">
+        Ventas <span class="nav-arrow" id="arrowVentas">&#9660;</span>
+      </div>
+      <div class="nav-sub-items" id="subVentas" style="display:{% if request.path in ['/ventas', '/matriz', '/estadisticas'] %}block{% else %}none{% endif %};">
+        <a href="/ventas" class="nav-item nav-sub {% if request.path == '/ventas' %}active{% endif %}">&#8226; Ventas Netas</a>
+        <a href="/matriz" class="nav-item nav-sub {% if request.path == '/matriz' %}active{% endif %}">&#8226; Matriz Ventas</a>
+        <a href="/estadisticas" class="nav-item nav-sub {% if request.path == '/estadisticas' %}active{% endif %}">&#8226; Estadistica de Venta</a>
+      </div>
+    </div>
+    <div class="nav-submenu">
+      <div class="nav-item nav-parent {% if request.path in ['/stock', '/stock-matriz', '/stock-analisis'] %}active{% endif %}" onclick="toggleSubmenu('subStock')">
+        Stock <span class="nav-arrow" id="arrowStock">&#9660;</span>
+      </div>
+      <div class="nav-sub-items" id="subStock" style="display:{% if request.path in ['/stock', '/stock-matriz', '/stock-analisis'] %}block{% else %}none{% endif %};">
+        <a href="/stock" class="nav-item nav-sub {% if request.path == '/stock' %}active{% endif %}">&#8226; Stock Actual</a>
+        <a href="/stock-matriz" class="nav-item nav-sub {% if request.path == '/stock-matriz' %}active{% endif %}">&#8226; Matriz Stock</a>
+        <a href="/stock-analisis" class="nav-item nav-sub {% if request.path == '/stock-analisis' %}active{% endif %}">&#8226; Analisis Stock</a>
+      </div>
+    </div>
+    <a href="/rotacion" class="nav-item {% if request.path == '/rotacion' %}active{% endif %}">Rotacion</a>
+  </nav>
+  <nav class="nav-section">
+    <div class="nav-label">Planificacion</div>
+    <a href="/minmax" class="nav-item {% if request.path == '/minmax' %}active{% endif %}">Min-Max</a>
+    <a href="/balanceo" class="nav-item {% if request.path == '/balanceo' %}active{% endif %}">Balanceo</a>
+  </nav>
+</div>
+<div class="main">
+  <div class="topbar">
+    <h1>{% block heading %}{% endblock %}</h1>
+    <span class="fecha">{{ now }}</span>
+  </div>
+  <div class="content">
+    {% block content %}{% endblock %}
+  </div>
+</div>
+<script>
+function toggleSubmenu(id) {
+  const sub   = document.getElementById(id);
+  const arrow = document.getElementById("arrow" + id.replace("sub",""));
+  if (sub.style.display === "none") {
+    sub.style.display = "block";
+    if (arrow) arrow.style.transform = "rotate(0deg)";
+  } else {
+    sub.style.display = "none";
+    if (arrow) arrow.style.transform = "rotate(-90deg)";
+  }
+}
+</script>
+</body>
+</html>

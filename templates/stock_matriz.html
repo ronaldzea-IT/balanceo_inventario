@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+{% block heading %}Matriz de Stock{% endblock %}
+
+{% block content %}
+<style>
+.toolbar { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+.toolbar input[type=text] { flex: 2; min-width: 200px; padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; outline: none; }
+.toolbar input[type=text]:focus { border-color: #2E75B6; }
+.btn-accion { padding: 10px 16px; background: #2E75B6; color: white; border: none; border-radius: 8px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
+.btn-accion:hover { background: #1F4E79; }
+
+.toolbar-prov { margin-bottom: 16px; }
+
+.dd-wrap { position: relative; }
+.dd-btn { padding: 10px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.85rem; background: white; cursor: pointer; white-space: nowrap; min-width: 180px; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.dd-btn:hover { border-color: #2E75B6; }
+.dd-btn.active { border-color: #2E75B6; }
+.dd-btn .arrow { font-size: 0.7rem; color: #999; }
+.dd-list { display: none; position: absolute; top: calc(100% + 4px); left: 0; background: white; border: 2px solid #2E75B6; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 999; min-width: 220px; max-height: 280px; overflow-y: auto; }
+.dd-list.open { display: block; }
+.dd-actions { display: flex; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #eee; }
+.dd-actions span { font-size: 0.75rem; color: #2E75B6; cursor: pointer; text-decoration: underline; }
+.dd-item { display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; font-size: 0.83rem; }
+.dd-item:hover { background: #f0f7ff; }
+.dd-item input[type=checkbox] { cursor: pointer; accent-color: #2E75B6; flex-shrink: 0; }
+.dd-wrap-ancho { width: 100%; position: relative; }
+.dd-btn-ancho { width: 100%; padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.85rem; background: white; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.dd-btn-ancho:hover { border-color: #2E75B6; }
+.dd-btn-ancho.active { border-color: #2E75B6; }
+.dd-btn-ancho .arrow { font-size: 0.7rem; color: #999; flex-shrink: 0; }
+.dd-list-ancho { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: white; border: 2px solid #2E75B6; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 999; max-height: 320px; overflow-y: auto; }
+.dd-list-ancho.open { display: block; }
+.dd-search { padding: 8px 10px; border-bottom: 1px solid #eee; }
+.dd-search input { width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.82rem; outline: none; box-sizing: border-box; }
+.dd-item-single { padding: 8px 14px; cursor: pointer; font-size: 0.83rem; }
+.dd-item-single:hover { background: #f0f7ff; }
+.dd-item-single.selected { background: #EBF3FB; color: #1F4E79; font-weight: 600; }
+
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.kpi { background: white; border-radius: 8px; padding: 12px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid #2E75B6; }
+.kpi-label { font-size: 0.7rem; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
+.kpi-valor { font-size: 1.3rem; font-weight: 700; color: #1F4E79; margin-top: 4px; }
+
+.tabla-scroll { overflow-x: auto; overflow-y: auto; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); max-height: 70vh; width: 100%; }
+table { border-collapse: collapse; background: white; font-size: 0.78rem; white-space: nowrap; width: 100%; }
+thead th { background: #1F4E79; color: white; padding: 8px 10px; text-align: center; font-weight: 600; font-size: 0.7rem; text-transform: uppercase; position: sticky; top: 0; z-index: 3; border-right: 1px solid rgba(255,255,255,0.15); }
+thead th.th-sku  { position: sticky; left: 0; z-index: 5; min-width: 80px; text-align: left; }
+thead th.th-desc { position: sticky; left: 80px; z-index: 5; min-width: 380px; text-align: left; border-right: 2px solid rgba(255,255,255,0.3); }
+th.th-total { background: #C55A11; }
+th.th-prom  { background: #375623; }
+tbody tr { border-bottom: 1px solid #f0f0f0; }
+tbody tr:hover { background: #f8fbff; }
+tbody tr:hover td.td-fixed { background: #f0f7ff; }
+tbody td { padding: 7px 10px; text-align: right; border-right: 1px solid #f0f0f0; }
+tbody td.td-fixed { position: sticky; background: white; z-index: 2; }
+tbody td.td-sku  { left: 0; font-weight: 700; color: #1F4E79; text-align: left; min-width: 80px; }
+tbody td.td-desc { left: 80px; text-align: left; min-width: 380px; max-width: 380px; overflow: hidden; text-overflow: ellipsis; border-right: 2px solid #e0e0e0; }
+tbody td.td-total { background: #FCE4D6; font-weight: 700; color: #843C0C; }
+tbody td.td-prom  { background: #E2EFDA; font-weight: 700; color: #375623; }
+td.cero { color: #ddd; }
+.col-resaltada { background: #FFF6D9 !important; }
+th.col-resaltada { background: #C55A11 !important; }
+tr.fila-resaltada td { background: #E8F0FE !important; }
+tr.fila-resaltada td.col-resaltada { background: #FFE9A8 !important; }
+tr.fila-resaltada:hover td { background: #DCE7FB !important; }
+.estado-area { background: white; border-radius: 10px; padding: 48px; text-align: center; color: #bbb; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border: 2px dashed #e0e0e0; }
+.spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #c8e0f5; border-top-color: #2E75B6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading { text-align: center; padding: 40px; color: #2E75B6; }
+</style>
+
+<div class="toolbar">
+  <input type="text" id="searchInput" placeholder="Buscar SKU o descripcion..." oninput="filtrar()">
+  <div class="dd-wrap" id="wrapSuc">
+    <button class="dd-btn" id="btnSuc" onclick="toggleDDSuc()">
+      <span id="lblSuc">Todas las sucursales</span><span class="arrow">&#9660;</span>
+    </button>
+    <div class="dd-list" id="listSuc">
+      <div class="dd-actions"><span onclick="selTodosSuc()">Todos</span><span onclick="deselTodosSuc()">Ninguno</span></div>
+      <div id="itemsSuc"></div>
+    </div>
+  </div>
+  <button class="btn-accion" onclick="cargar()">&#x21BB; Recargar</button>
+</div>
+
+<div class="toolbar-prov">
+  <div class="dd-wrap-ancho" id="wrapProv">
+    <button class="dd-btn-ancho" id="btnProv" onclick="toggleProv()">
+      <span id="lblProv">Todos los proveedores</span><span class="arrow">&#9660;</span>
+    </button>
+    <div class="dd-list-ancho" id="listProv">
+      <div class="dd-search"><input type="text" id="searchProv" placeholder="Buscar proveedor..."></div>
+      <div id="itemsProv"></div>
+    </div>
+  </div>
+</div>
+
+<div class="kpi-row" id="kpiRow" style="display:none;">
+  <div class="kpi"><div class="kpi-label">SKUs</div><div class="kpi-valor" id="kpiSkus">-</div></div>
+  <div class="kpi"><div class="kpi-label">Sucursales</div><div class="kpi-valor" id="kpiSucs">-</div></div>
+  <div class="kpi"><div class="kpi-label">Stock Total (und)</div><div class="kpi-valor" id="kpiTotal">-</div></div>
+  <div class="kpi"><div class="kpi-label">Prom. por Sucursal</div><div class="kpi-valor" id="kpiProm">-</div></div>
+</div>
+
+<div id="contenido"><div class="estado-area"><p>Seleccione un proveedor y presione Recargar</p></div></div>
+
+<script>
+let matrizData = null;
+let datosFiltrados = [];
+let proveedoresList = [];
+let mapaNombresProv = {};
+let provSeleccionado = "";
+
+function toggleProv() {
+  document.getElementById("listProv").classList.toggle("open");
+  document.getElementById("btnProv").classList.toggle("active");
+}
+document.addEventListener("click", function(e) {
+  if (!document.getElementById("wrapProv").contains(e.target)) {
+    document.getElementById("listProv").classList.remove("open");
+    document.getElementById("btnProv").classList.remove("active");
+  }
+});
+
+async function poblarProv() {
+  try { const r = await fetch("/api/proveedores/lista"); proveedoresList = await r.json(); }
+  catch(e) { proveedoresList = []; }
+  mapaNombresProv = {};
+  proveedoresList.forEach(p => { mapaNombresProv[p.codigo] = p.nombre; });
+  const activos = Object.keys(localStorage)
+    .filter(k => k.startsWith("prov_activo_") && localStorage.getItem(k) === "1")
+    .map(k => k.replace("prov_activo_", ""));
+  provSeleccionado = activos.length > 0 ? activos[0] : "";
+  actualizarLabelProv(); renderProv();
+  document.getElementById("searchProv").addEventListener("input", function() {
+    const q = this.value.toLowerCase();
+    document.getElementById("itemsProv").querySelectorAll(".dd-item-single").forEach(el => {
+      el.style.display = el.textContent.toLowerCase().includes(q) ? "" : "none";
+    });
+  });
+}
+
+function renderProv() {
+  const cont = document.getElementById("itemsProv");
+  cont.innerHTML = "";
+  const divTodos = document.createElement("div");
+  divTodos.className = "dd-item-single" + (!provSeleccionado ? " selected" : "");
+  divTodos.textContent = "Todos los proveedores";
+  divTodos.addEventListener("click", function() {
+    provSeleccionado = ""; actualizarLabelProv(); renderProv();
+    cerrarDropdown();
+  });
+  cont.appendChild(divTodos);
+  proveedoresList.forEach(p => {
+    const div = document.createElement("div");
+    div.className = "dd-item-single" + (provSeleccionado === p.codigo ? " selected" : "");
+    div.textContent = p.codigo + " - " + p.nombre;
+    div.addEventListener("click", function() {
+      provSeleccionado = p.codigo; actualizarLabelProv(); renderProv();
+      cerrarDropdown();
+    });
+    cont.appendChild(div);
+  });
+}
+function cerrarDropdown() {
+  document.getElementById("listProv").classList.remove("open");
+  document.getElementById("btnProv").classList.remove("active");
+}
+function actualizarLabelProv() {
+  const lbl = document.getElementById("lblProv");
+  if (!provSeleccionado) { lbl.textContent = "Todos los proveedores"; return; }
+  const nombre = mapaNombresProv[provSeleccionado];
+  lbl.textContent = nombre ? (provSeleccionado + " - " + nombre) : provSeleccionado;
+}
+
+async function cargar() {
+  document.getElementById("contenido").innerHTML = "<div class='loading'><div class='spinner'></div><br>Construyendo matriz de stock...</div>";
+  document.getElementById("kpiRow").style.display = "none";
+  const url = "/api/stock-matriz" + (provSeleccionado ? "?co_prov=" + encodeURIComponent(provSeleccionado) : "");
+  const res  = await fetch(url);
+  matrizData = await res.json();
+  if (matrizData.error) {
+    document.getElementById("contenido").innerHTML = "<div class='estado-area'><p style='color:#C00000'>" + matrizData.error + "</p></div>";
+    return;
+  }
+  await poblarSuc();
+  datosFiltrados = matrizData.filas;
+  actualizarKPIs();
+  document.getElementById("kpiRow").style.display = "grid";
+  renderMatriz();
+}
+
+function filtrar() {
+  if (!matrizData) return;
+  const q = document.getElementById("searchInput").value.toLowerCase();
+  datosFiltrados = matrizData.filas.filter(f => (f.sku + f.descripcion).toLowerCase().includes(q));
+  actualizarKPIs();
+  renderMatriz();
+}
+
+// ---- Sucursales ----
+let todosSuc = [];
+const selSuc = new Set();
+
+function toggleDDSuc() {
+  document.getElementById("listSuc").classList.toggle("open");
+  document.getElementById("btnSuc").classList.toggle("active");
+}
+document.addEventListener("click", function(e) {
+  const wrap = document.getElementById("wrapSuc");
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById("listSuc").classList.remove("open");
+    document.getElementById("btnSuc").classList.remove("active");
+  }
+});
+
+async function poblarSuc() {
+  if (todosSuc.length === 0) {
+    todosSuc = [...matrizData.sucursales].sort();
+    todosSuc.forEach(s => {
+      const v = localStorage.getItem("suc_activa_" + s);
+      if (v === null || v === "1") selSuc.add(s); else selSuc.delete(s);
+    });
+  }
+  actualizarLabelSuc();
+  renderSuc();
+}
+
+function renderSuc() {
+  const cont = document.getElementById("itemsSuc");
+  cont.innerHTML = "";
+  todosSuc.forEach(s => {
+    const div = document.createElement("div");
+    div.className = "dd-item";
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = selSuc.has(s);
+    const span = document.createElement("span"); span.textContent = s;
+    div.appendChild(cb); div.appendChild(span);
+    cb.addEventListener("change", function() {
+      if (this.checked) selSuc.add(s); else selSuc.delete(s);
+      actualizarLabelSuc(); renderMatriz(); actualizarKPIs();
+    });
+    div.addEventListener("click", function(e) { if (e.target !== cb) cb.click(); });
+    cont.appendChild(div);
+  });
+}
+function actualizarLabelSuc() {
+  const lbl = document.getElementById("lblSuc");
+  const n = selSuc.size, total = todosSuc.length;
+  if (n === 0) lbl.textContent = "Sin sucursales";
+  else if (n === total) lbl.textContent = "Todas las sucursales";
+  else if (n === 1) lbl.textContent = [...selSuc][0];
+  else lbl.textContent = n + " sucursales";
+}
+function selTodosSuc() { todosSuc.forEach(s => selSuc.add(s)); actualizarLabelSuc(); renderSuc(); renderMatriz(); actualizarKPIs(); }
+function deselTodosSuc() { selSuc.clear(); actualizarLabelSuc(); renderSuc(); renderMatriz(); actualizarKPIs(); }
+
+function actualizarKPIs() {
+  if (!matrizData) return;
+  const sucsVisibles = matrizData.sucursales.filter(s => selSuc.has(s));
+  const totalU = datosFiltrados.reduce((a, f) => {
+    let suma = 0;
+    sucsVisibles.forEach(s => { suma += (f.sucursales[s] || 0); });
+    return a + suma;
+  }, 0);
+  document.getElementById("kpiSkus").textContent  = datosFiltrados.length.toLocaleString();
+  document.getElementById("kpiSucs").textContent  = sucsVisibles.length;
+  document.getElementById("kpiTotal").textContent = totalU.toLocaleString();
+  document.getElementById("kpiProm").textContent  = sucsVisibles.length ? Math.round(totalU / sucsVisibles.length).toLocaleString() : "0";
+}
+
+let sortColMx = "";
+let sortAscMx = true;
+let colResaltada = "";
+let filaResaltada = -1;
+
+function sortByMx(col) {
+  if (sortColMx === col) sortAscMx = !sortAscMx;
+  else { sortColMx = col; sortAscMx = true; }
+  colResaltada = col;
+  renderMatriz();
+}
+function sortIconMx(col) {
+  if (sortColMx !== col) return " &#8597;";
+  return sortAscMx ? " &#8593;" : " &#8595;";
+}
+
+function toggleFila(idx) {
+  filaResaltada = (filaResaltada === idx) ? -1 : idx;
+  renderMatriz();
+}
+
+function renderMatriz() {
+  if (!matrizData) return;
+  const sucs = matrizData.sucursales.filter(s => selSuc.has(s));
+
+  if (sortColMx) {
+    datosFiltrados.sort((a, b) => {
+      let va, vb;
+      if (sortColMx === "sku" || sortColMx === "descripcion") {
+        va = (a[sortColMx] || "").toString().toLowerCase();
+        vb = (b[sortColMx] || "").toString().toLowerCase();
+      } else if (sortColMx === "total" || sortColMx === "promedio") {
+        va = a[sortColMx]; vb = b[sortColMx];
+      } else {
+        va = a.sucursales[sortColMx] || 0;
+        vb = b.sucursales[sortColMx] || 0;
+      }
+      if (va < vb) return sortAscMx ? -1 : 1;
+      if (va > vb) return sortAscMx ? 1 : -1;
+      return 0;
+    });
+  }
+
+  const colCls = function(col) { return colResaltada === col ? " col-resaltada" : ""; };
+
+  let th = "<th class='th-sku" + colCls("sku") + "' onclick=\"sortByMx('sku')\" style='cursor:pointer'>SKU" + sortIconMx("sku") + "</th>" +
+           "<th class='th-desc" + colCls("descripcion") + "' onclick=\"sortByMx('descripcion')\" style='cursor:pointer'>Descripcion" + sortIconMx("descripcion") + "</th>";
+  sucs.forEach(s => { th += "<th class='" + colCls(s).trim() + "' onclick=\"sortByMx('" + s + "')\" style='cursor:pointer'>" + s + sortIconMx(s) + "</th>"; });
+  th += "<th class='th-total" + colCls("total") + "' onclick=\"sortByMx('total')\" style='cursor:pointer'>Total" + sortIconMx("total") + "</th>" +
+        "<th class='th-prom" + colCls("promedio") + "' onclick=\"sortByMx('promedio')\" style='cursor:pointer'>Prom." + sortIconMx("promedio") + "</th>";
+
+  let tbody = "";
+  datosFiltrados.forEach((f, idx) => {
+    const filaCls = filaResaltada === idx ? " fila-resaltada" : "";
+    let tr = "<tr class='" + filaCls.trim() + "' onclick=\"toggleFila(" + idx + ")\" style='cursor:pointer'>";
+    tr += "<td class='td-fixed td-sku" + colCls("sku") + "'>" + f.sku + "</td>";
+    tr += "<td class='td-fixed td-desc" + colCls("descripcion") + "' title='" + f.descripcion + "'>" + f.descripcion + "</td>";
+    let totalVisible = 0;
+    sucs.forEach(s => {
+      const v = f.sucursales[s] || 0;
+      totalVisible += v;
+      tr += "<td class='" + (v === 0 ? "cero " : "") + colCls(s).trim() + "'>" + (v === 0 ? "-" : v.toLocaleString()) + "</td>";
+    });
+    const promVisible = sucs.length ? (totalVisible / sucs.length) : 0;
+    tr += "<td class='td-total" + colCls("total") + "'>" + totalVisible.toLocaleString() + "</td>";
+    tr += "<td class='td-prom" + colCls("promedio") + "'>" + promVisible.toFixed(1) + "</td>";
+    tr += "</tr>";
+    tbody += tr;
+  });
+
+  document.getElementById("contenido").innerHTML =
+    "<div class='tabla-scroll'><table><thead><tr>" + th + "</tr></thead><tbody>" + tbody + "</tbody></table></div>";
+}
+
+window.onload = async function() {
+  await poblarProv();
+  cargar();
+};
+</script>
+{% endblock %}
