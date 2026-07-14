@@ -142,11 +142,11 @@ tr.fila-resaltada:hover td { background: #DCE7FB !important; }
 </style>
 
 <div class="toolbar">
-  <input type="text" id="searchInput" placeholder="Buscar SKU o descripcion..." oninput="filtrar()">
+  <input type="text" id="searchInput" placeholder="Buscar Articulo o descripcion..." oninput="filtrar()">
 
   <div class="vista-toggle">
-    <button id="btnVistaDetalle" class="active" onclick="cambiarVista('detalle')">Detalle SKU-Sucursal</button>
-    <button id="btnVistaConsolidado" onclick="cambiarVista('consolidado')">Consolidado por SKU</button>
+    <button id="btnVistaDetalle" class="active" onclick="cambiarVista('detalle')">Detalle Articulo-Sucursal</button>
+    <button id="btnVistaConsolidado" onclick="cambiarVista('consolidado')">Consolidado por Articulo</button>
   </div>
 
   <div class="dd-wrap" id="wrapSuc">
@@ -392,7 +392,7 @@ function actualizarKPIs() {
     const dohs = datosFiltrados.filter(d => d.doh > 0 && d.rotacion < 999);
     const promDoh = dohs.length ? (dohs.reduce((a,d)=>a+d.doh,0)/dohs.length) : 0;
     cont.innerHTML =
-      kpi("Combos SKU-Sucursal", datosFiltrados.length.toLocaleString()) +
+      kpi("Combos Articulo-Sucursal", datosFiltrados.length.toLocaleString()) +
       kpi("Rotacion promedio", promRot.toFixed(1) + "x", "verde") +
       kpi("DOH promedio", Math.round(promDoh) + " dias", "verde") +
       kpi("Quiebre con demanda", contarDiag(datosFiltrados,"Quiebre").toLocaleString(), "rojo") +
@@ -406,7 +406,7 @@ function actualizarKPIs() {
     const y = datosFiltrados.filter(d=>d.xyz==="Y").length;
     const z = datosFiltrados.filter(d=>d.xyz==="Z").length;
     cont.innerHTML =
-      kpi("SKUs", datosFiltrados.length.toLocaleString()) +
+      kpi("Articulos", datosFiltrados.length.toLocaleString()) +
       kpi("A / B / C", a+" / "+b+" / "+c, "verde") +
       kpi("X / Y / Z", x+" / "+y+" / "+z, "naranja") +
       kpi("A discontinuar (CZ)", datosFiltrados.filter(d=>d.matriz==="CZ").length.toLocaleString(), "rojo");
@@ -500,7 +500,7 @@ function renderTabla() {
   let tabla;
   if (vista === "detalle") {
     const encCols = [
-      ["sku","SKU",""], ["descripcion","Descripcion",""], ["sucursal","Sucursal",""],
+      ["sku","Articulo",""], ["descripcion","Descripcion",""], ["sucursal","Sucursal",""],
       ["costo_unit","Costo Unit.","right"], ["ventas_6m","Ventas 6M","right"], ["ventas_anual","Ventas Anual","right"],
       ["stock_actual","Stock Actual","right"], ["rotacion","Rotacion","right"], ["doh","DOH","right"],
       ["xyz","XYZ","center"], ["diagnostico","Diagnostico",""]
@@ -534,7 +534,7 @@ function renderTabla() {
     tabla = "<div class='tabla-scroll'><table><thead><tr>" + thHtml + "</tr></thead><tbody>" + filas + "</tbody></table></div>";
   } else {
     const encCols = [
-      ["sku","SKU",""], ["descripcion","Descripcion",""], ["categoria","Categoria",""], ["proveedor","Proveedor",""],
+      ["sku","Articulo",""], ["descripcion","Descripcion",""], ["categoria","Categoria",""], ["proveedor","Proveedor",""],
       ["costo_unit","Costo Unit.","right"], ["ventas_6m","Ventas 6M","right"], ["valor_venta","Valor Venta Anual","right"],
       ["stock_total","Stock Total","right"], ["rotacion","Rotacion","right"], ["doh","DOH","right"],
       ["abc","ABC","center"], ["xyz","XYZ","center"], ["estrategia","Estrategia",""]

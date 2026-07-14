@@ -124,7 +124,7 @@ tr.fila-resaltada:hover td { background: #DCE7FB !important; }
 </div>
 
 <div class="toolbar">
-  <input type="text" id="searchInput" placeholder="Buscar SKU o descripcion..." oninput="filtrar()">
+  <input type="text" id="searchInput" placeholder="Buscar Articulo o descripcion..." oninput="filtrar()">
   <div class="dd-wrap" id="wrapSuc">
     <button class="dd-btn" id="btnSuc" onclick="toggleDDSuc()">
       <span id="lblSuc">Todas las sucursales</span><span class="arrow">&#9660;</span>
@@ -415,7 +415,7 @@ function renderTabla() {
   }).join("");
 
   const encCols = [
-    ["sku","SKU"], ["descripcion","Descripcion"], ["sucursal","Suc."],
+    ["sku","Articulo"], ["descripcion","Descripcion"], ["sucursal","Suc."],
     ["stock_disp","Stock Disp."], ["pvd","PVD"], ["dias_cobertura","Dias Cobertura"],
     ["promedio","Prom.Mes"], ["clasif","XYZ"], ["tendencia","Tendencia"], ["estado","Estado"]
   ];

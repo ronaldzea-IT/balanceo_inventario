@@ -1748,11 +1748,7 @@ def api_dashboard_inventario():
             RTRIM(s.co_art)            AS sku,
             ISNULL(RTRIM(su.campo2), \'\') AS region,
             SUM(CASE WHEN RTRIM(s.tipo) = \'ACT\' THEN s.stock ELSE 0 END) AS stock_act,
-            MAX(RTRIM(a.art_des))       AS desc_bd,
-            RTRIM(s.co_alma)            AS almacen,
-            MAX(CASE WHEN s.stock > 0 THEN ROUND(dbo.AgpConsultarCostoxAlmacenxFecha(
-                s.co_art, s.co_alma, GETDATE(), 'UND', '7', 'USD', 1
-            ), 2) ELSE 0 END)           AS costo
+            MAX(RTRIM(a.art_des))       AS desc_bd
         FROM saStockAlmacen s
         LEFT JOIN saSucursal su ON RTRIM(LEFT(s.co_alma,2)) = RTRIM(su.co_sucur)
         LEFT JOIN saArticulo a ON RTRIM(s.co_art) = RTRIM(a.co_art)
@@ -1776,8 +1772,6 @@ def api_dashboard_inventario():
         else: return "Z"
 
     conteo = {"OPTIMO": 0, "CRITICO": 0, "EXCESO": 0, "SIN_STOCK": 0, "SIN_VENTA": 0}
-    unidades = {"OPTIMO": 0.0, "CRITICO": 0.0, "EXCESO": 0.0, "SIN_STOCK": 0.0, "SIN_VENTA": 0.0}
-    monto    = {"OPTIMO": 0.0, "CRITICO": 0.0, "EXCESO": 0.0, "SIN_STOCK": 0.0, "SIN_VENTA": 0.0}
     skus_procesados = set()
     criticos = []
     excesos = []
@@ -1788,10 +1782,9 @@ def api_dashboard_inventario():
     for v in ventas_data:
         desc_por_sku[v["sku"]] = v["descripcion"]
 
-    for suc, sku, region, stock_act, desc_bd, almacen, costo in stock_rows:
-        inactivo_global = (sku, suc) in desactivados
-        inactivo_alma   = (sku, almacen) in desactivados
-        es_activo = not (inactivo_global or inactivo_alma)
+    for suc, sku, region, stock_act, desc_bd in stock_rows:
+        if (sku, suc) in desactivados:
+            continue
         stock_act = float(stock_act)
         region = region or "CENTRO-OCCIDENTE"
         lead_time = lt.get(region.upper(), 35)
@@ -1830,34 +1823,30 @@ def api_dashboard_inventario():
         else:
             estado = "OPTIMO"
 
-        if es_activo:
-            conteo[estado] += 1
-            unidades[estado] += stock_act
-            monto[estado]    += stock_act * float(costo or 0)
-            skus_procesados.add(k)
+        conteo[estado] += 1
+        skus_procesados.add(k)
 
-            if estado == "CRITICO":
-                faltante = round(p_min - stock_act, 0)
-                criticos.append({
-                    "sku": sku, "descripcion": desc_por_sku.get(sku, sku),
-                    "sucursal": suc, "stock": round(stock_act, 0),
-                    "minimo": round(p_min, 0), "faltante": faltante,
-                })
-            elif estado == "EXCESO":
-                exceso_cant = round(stock_act - p_max, 0)
-                excesos.append({
-                    "sku": sku, "descripcion": desc_por_sku.get(sku, sku),
-                    "sucursal": suc, "stock": round(stock_act, 0),
-                    "maximo": round(p_max, 0), "exceso": exceso_cant,
-                })
+        if estado == "CRITICO":
+            faltante = round(p_min - stock_act, 0)
+            criticos.append({
+                "sku": sku, "descripcion": desc_por_sku.get(sku, sku),
+                "sucursal": suc, "stock": round(stock_act, 0),
+                "minimo": round(p_min, 0), "faltante": faltante,
+            })
+        elif estado == "EXCESO":
+            exceso_cant = round(stock_act - p_max, 0)
+            excesos.append({
+                "sku": sku, "descripcion": desc_por_sku.get(sku, sku),
+                "sucursal": suc, "stock": round(stock_act, 0),
+                "maximo": round(p_max, 0), "exceso": exceso_cant,
+            })
 
         detalle_completo.append({
             "sku": sku, "descripcion": desc_por_sku.get(sku, sku),
             "sucursal": suc, "region": region,
             "stock": round(stock_act, 0), "pvd": round(pvd, 4),
             "punto_min": round(p_min, 1), "punto_max": round(p_max, 1),
-            "estado": estado, "activo": es_activo,
-            "almacen": almacen, "desact_global": inactivo_global,
+            "estado": estado,
         })
 
     criticos.sort(key=lambda r: r["faltante"], reverse=True)
@@ -1865,48 +1854,20 @@ def api_dashboard_inventario():
     top_criticos = criticos[:10]
     top_excesos  = excesos[:10]
 
-    region_por_suc = {}
-    for _row in stock_rows:
-        if _row[2]:
-            region_por_suc[_row[0]] = _row[2]
     for (sku, suc), ventas_lista in ventas_por_sku_suc.items():
         if (sku, suc) in skus_procesados:
             continue
-        total_vendido = sum(ventas_lista)
-        if total_vendido == 0:
+        if sum(ventas_lista) == 0:
             continue
         conteo["SIN_STOCK"] += 1
-        region = region_por_suc.get(suc, "CENTRO-OCCIDENTE")
-        lead_time = lt.get(region.upper(), 35)
-        pvd = total_vendido / dias_periodo if dias_periodo > 0 else 0
-        if len(ventas_lista) > 1:
-            mean = sum(ventas_lista) / len(ventas_lista)
-            var  = sum((x - mean) ** 2 for x in ventas_lista) / len(ventas_lista)
-            desv_d = math.sqrt(var) / 30
-        else:
-            desv_d = 0
-        clasif = clasificar_xyz(ventas_lista)
-        z = fz.get(clasif, 0)
-        ss = z * desv_d * math.sqrt(lead_time)
-        p_min = pvd * lead_time + ss
-        p_max = p_min + pvd * cobertura
-        detalle_completo.append({
-            "sku": sku, "descripcion": desc_por_sku.get(sku, sku),
-            "sucursal": suc, "region": region,
-            "stock": 0, "pvd": round(pvd, 4),
-            "punto_min": round(p_min, 1), "punto_max": round(p_max, 1),
-            "estado": "SIN_STOCK", "activo": True,
-            "almacen": "", "desact_global": False,
-        })
 
     total = sum(conteo.values()) or 1
     resultado = []
-    orden = [("OPTIMO", "Optimo"), ("CRITICO", "Critico"), ("EXCESO", "SobreInventario"),
+    orden = [("OPTIMO", "Optimo"), ("CRITICO", "Critico"), ("EXCESO", "Exceso"),
              ("SIN_STOCK", "Sin Stock"), ("SIN_VENTA", "Sin Venta")]
     for key, label in orden:
         resultado.append({
             "estado": key, "label": label, "cantidad": conteo[key],
-            "unidades": round(unidades[key], 2), "monto": round(monto[key], 2),
             "porcentaje": round(conteo[key] / total * 100, 1)
         })
 

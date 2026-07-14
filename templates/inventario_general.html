@@ -1,0 +1,525 @@
+{% extends "base.html" %}
+{% block heading %}Estado de Inventario{% endblock %}
+
+{% block content %}
+<style>
+.toolbar { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+.toolbar input[type=text] { flex: 2; min-width: 200px; padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; outline: none; }
+.toolbar input[type=text]:focus { border-color: #2E75B6; }
+.btn-accion { padding: 10px 16px; background: #2E75B6; color: white; border: none; border-radius: 8px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
+.btn-accion:hover { background: #1F4E79; }
+
+.dd-wrap { position: relative; }
+.dd-btn { padding: 10px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.85rem; background: white; cursor: pointer; white-space: nowrap; min-width: 180px; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.dd-btn:hover { border-color: #2E75B6; }
+.dd-btn.active { border-color: #2E75B6; }
+.dd-btn .arrow { font-size: 0.7rem; color: #999; }
+.dd-list { display: none; position: absolute; top: calc(100% + 4px); left: 0; background: white; border: 2px solid #2E75B6; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 999; min-width: 220px; max-height: 280px; overflow-y: auto; }
+.dd-list.open { display: block; }
+.dd-search { padding: 8px 10px; border-bottom: 1px solid #eee; }
+.dd-search input { width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.82rem; outline: none; box-sizing: border-box; }
+.dd-actions { display: flex; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #eee; }
+.dd-actions span { font-size: 0.75rem; color: #2E75B6; cursor: pointer; text-decoration: underline; }
+.dd-item { display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; font-size: 0.83rem; }
+.dd-item:hover { background: #f0f7ff; }
+.dd-item input[type=checkbox] { cursor: pointer; accent-color: #2E75B6; flex-shrink: 0; }
+
+.toolbar-prov { margin-bottom: 16px; }
+.dd-wrap-ancho { width: 100%; position: relative; }
+.dd-btn-ancho { width: 100%; padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.85rem; background: white; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.dd-btn-ancho:hover { border-color: #2E75B6; }
+.dd-btn-ancho.active { border-color: #2E75B6; }
+.dd-btn-ancho .arrow { font-size: 0.7rem; color: #999; flex-shrink: 0; }
+.dd-list-ancho { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: white; border: 2px solid #2E75B6; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 999; max-height: 320px; overflow-y: auto; }
+.dd-list-ancho.open { display: block; }
+.dd-item-single { padding: 8px 14px; cursor: pointer; font-size: 0.83rem; }
+.dd-item-single:hover { background: #f0f7ff; }
+.dd-item-single.selected { background: #EBF3FB; color: #1F4E79; font-weight: 600; }
+
+.dist-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0; margin-bottom: 16px; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.dist-item { padding: 14px 16px; text-align: center; border-right: 1px solid rgba(255,255,255,0.2); cursor: pointer; transition: filter 0.15s, opacity 0.15s; position: relative; }
+.art-switch { position: relative; display: inline-block; width: 34px; height: 19px; }
+.art-switch input { opacity: 0; width: 0; height: 0; }
+.art-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; border-radius: 19px; transition: 0.2s; }
+.art-slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 2px; bottom: 2.5px; background: white; border-radius: 50%; transition: 0.2s; }
+.art-switch input:checked + .art-slider { background: #375623; }
+.art-switch input:checked + .art-slider:before { transform: translateX(15px); }
+.art-switch input:disabled + .art-slider { opacity: 0.45; cursor: not-allowed; }
+.lock-global { font-size: 10px; color: #b03a2e; display: block; margin-top: 2px; }
+tr.fila-inactiva { opacity: 0.4; }
+.dist-item:hover { filter: brightness(0.95); }
+.dist-item:last-child { border-right: none; }
+.dist-item.selected { outline: 3px solid #1F4E79; outline-offset: -3px; }
+.dist-item .dist-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+.dist-item .dist-valor { font-size: 1.6rem; font-weight: 800; margin: 6px 0 2px; }
+.dist-item .dist-pct { font-size: 0.7rem; font-style: italic; }
+.dist-item.optimo   { background: #C9E9D6; color: #1c5c3a; }
+.dist-item.critico  { background: #F6C9BE; color: #7a2b12; }
+.dist-item.exceso   { background: #FBE49B; color: #7a5c00; }
+.dist-item.sinstock { background: #B3261E; color: #fff; }
+.dist-item.sinstock .dist-pct { color: rgba(255,255,255,0.85); }
+.dist-item.sinventa { background: #DCE0E5; color: #444; }
+.dist-item.todos    { background: #1F4E79; color: #fff; }
+.dist-item.todos .dist-pct { color: rgba(255,255,255,0.85); }
+
+.tabla-scroll { overflow-x: auto; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+table { width: 100%; min-width: 900px; border-collapse: collapse; background: white; font-size: 0.82rem; }
+thead th { background: #1F4E79; color: white; padding: 9px 10px; text-align: left; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; position: sticky; top: 0; cursor: pointer; white-space: nowrap; }
+thead th:hover { background: #2E75B6; }
+thead th.right { text-align: right; }
+thead th.center { text-align: center; }
+tbody tr { border-bottom: 1px solid #f5f5f5; transition: background 0.1s; }
+tbody tr:hover { background: #f8fbff; }
+tbody td { padding: 8px 10px; }
+tbody td.right { text-align: right; }
+tbody td.center { text-align: center; }
+.cod { font-weight: 700; color: #1F4E79; }
+.suc-badge { background: #1F4E79; color: white; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; }
+.est-badge { padding: 2px 9px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; display: inline-block; }
+.est-badge.optimo   { background: #C9E9D6; color: #1c5c3a; }
+.est-badge.critico  { background: #F6C9BE; color: #7a2b12; }
+.est-badge.exceso   { background: #FBE49B; color: #7a5c00; }
+.est-badge.sinstock { background: #B3261E; color: #fff; }
+.est-badge.sinventa { background: #DCE0E5; color: #444; }
+
+.paginador { display: flex; align-items: center; justify-content: space-between; padding: 8px 4px; margin: 8px 0; font-size: 0.82rem; color: #666; }
+.pag-info { color: #888; }
+.pag-select { padding: 6px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.82rem; outline: none; background: white; cursor: pointer; }
+.pag-select:focus { border-color: #2E75B6; }
+
+.estado-area { background: white; border-radius: 10px; padding: 48px; text-align: center; color: #bbb; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border: 2px dashed #e0e0e0; }
+.spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #c8e0f5; border-top-color: #2E75B6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading { text-align: center; padding: 40px; color: #2E75B6; }
+
+.col-resaltada { background: #FFF6D9 !important; }
+th.col-resaltada { background: #C55A11 !important; }
+tr.fila-resaltada td { background: #E8F0FE !important; }
+tr.fila-resaltada td.col-resaltada { background: #FFE9A8 !important; }
+tr.fila-resaltada:hover td { background: #DCE7FB !important; }
+</style>
+
+<div class="toolbar">
+  <input type="text" id="searchInput" placeholder="Buscar Articulo o descripcion..." oninput="filtrar()">
+
+  <div class="dd-wrap" id="wrapSuc">
+    <button class="dd-btn" id="btnSuc" onclick="toggleDD()">
+      <span id="lblSuc">Todas las sucursales</span><span class="arrow">&#9660;</span>
+    </button>
+    <div class="dd-list" id="listSuc">
+      <div class="dd-search"><input type="text" id="searchSuc" placeholder="Buscar sucursal..." oninput="renderSuc()"></div>
+      <div class="dd-actions"><span onclick="selTodosSuc()">Todos</span><span onclick="deselTodosSuc()">Ninguno</span></div>
+      <div id="itemsSuc"></div>
+    </div>
+  </div>
+
+  <button class="btn-accion" onclick="cargar()">&#x21BB; Recargar</button>
+</div>
+
+<div class="toolbar-prov">
+  <div class="dd-wrap-ancho" id="wrapProv">
+    <button class="dd-btn-ancho" id="btnProv" onclick="toggleProv()">
+      <span id="lblProv">Todos los proveedores</span><span class="arrow">&#9660;</span>
+    </button>
+    <div class="dd-list-ancho" id="listProv">
+      <div class="dd-search"><input type="text" id="searchProv" placeholder="Buscar proveedor..."></div>
+      <div id="itemsProv"></div>
+    </div>
+  </div>
+</div>
+
+<div class="dist-grid" id="distGrid" style="display:none;"></div>
+
+<div id="contenido"><div class="loading"><div class="spinner"></div><br>Calculando estado del inventario...</div></div>
+
+<script>
+let todosLosDatos = [];
+let datosFiltrados = [];
+let paginaActual = 1;
+let POR_PAGINA = 25;
+let sortCol = "";
+let sortAsc = true;
+let colResaltada = "";
+let filaResaltada = -1;
+let estadoFiltro = "";
+let distribucionData = [];
+let proveedoresList = [];
+let mapaNombresProv = {};
+let provSeleccionado = "";
+
+const selSuc = new Set();
+const todosSuc = [];
+
+const LABELS = { OPTIMO: "Optimo", CRITICO: "Critico", EXCESO: "SobreInventario", SIN_STOCK: "Sin Stock", SIN_VENTA: "Sin Venta" };
+const CLASES = { OPTIMO: "optimo", CRITICO: "critico", EXCESO: "exceso", SIN_STOCK: "sinstock", SIN_VENTA: "sinventa" };
+const ICONOS = { OPTIMO: "&#9899;", CRITICO: "&#9899;", EXCESO: "&#9899;", SIN_STOCK: "&#9899;", SIN_VENTA: "&#9675;" };
+
+function toggleDD() {
+  document.getElementById("listSuc").classList.toggle("open");
+  document.getElementById("btnSuc").classList.toggle("active");
+}
+document.addEventListener("click", function(e) {
+  const wrap = document.getElementById("wrapSuc");
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById("listSuc").classList.remove("open");
+    document.getElementById("btnSuc").classList.remove("active");
+  }
+  const wp = document.getElementById("wrapProv");
+  if (wp && !wp.contains(e.target)) {
+    document.getElementById("listProv").classList.remove("open");
+    document.getElementById("btnProv").classList.remove("active");
+  }
+});
+
+function poblarSuc(data) {
+  const sucs = [...new Set(data.map(d => d.sucursal))].sort();
+  todosSuc.length = 0;
+  sucs.forEach(s => {
+    todosSuc.push(s);
+    selSuc.add(s); // Siempre todas activas al ingresar por primera vez
+  });
+  actualizarLabelSuc();
+  renderSuc();
+}
+function renderSuc() {
+  const q = (document.getElementById("searchSuc").value || "").toLowerCase();
+  const lista = todosSuc.filter(s => s.toLowerCase().includes(q));
+  const cont = document.getElementById("itemsSuc");
+  cont.innerHTML = "";
+  lista.forEach(s => {
+    const div = document.createElement("div");
+    div.className = "dd-item";
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = selSuc.has(s);
+    const span = document.createElement("span"); span.textContent = s;
+    div.appendChild(cb); div.appendChild(span);
+    cb.addEventListener("change", function() {
+      if (this.checked) selSuc.add(s); else selSuc.delete(s);
+      actualizarLabelSuc(); filtrar();
+    });
+    div.addEventListener("click", function(e) { if (e.target !== cb) cb.click(); });
+    cont.appendChild(div);
+  });
+}
+function selTodosSuc() { todosSuc.forEach(s => selSuc.add(s)); actualizarLabelSuc(); renderSuc(); filtrar(); }
+function deselTodosSuc() { selSuc.clear(); actualizarLabelSuc(); renderSuc(); filtrar(); }
+function actualizarLabelSuc() {
+  const lbl = document.getElementById("lblSuc");
+  const n = selSuc.size, total = todosSuc.length;
+  if (n === 0) lbl.textContent = "Sin sucursales";
+  else if (n === total) lbl.textContent = "Todas las sucursales";
+  else if (n === 1) lbl.textContent = [...selSuc][0];
+  else lbl.textContent = n + " sucursales";
+}
+
+function toggleProv() {
+  document.getElementById("listProv").classList.toggle("open");
+  document.getElementById("btnProv").classList.toggle("active");
+}
+
+async function poblarProv() {
+  try { const r = await fetch("/api/proveedores/lista"); proveedoresList = await r.json(); }
+  catch(e) { proveedoresList = []; }
+  mapaNombresProv = {};
+  proveedoresList.forEach(p => { mapaNombresProv[p.codigo] = p.nombre; });
+  provSeleccionado = ""; // Siempre "Todos los proveedores" al ingresar por primera vez
+  actualizarLabelProv();
+  renderProv();
+  document.getElementById("searchProv").addEventListener("input", function() {
+    const q = this.value.toLowerCase();
+    document.getElementById("itemsProv").querySelectorAll(".dd-item-single").forEach(el => {
+      el.style.display = el.textContent.toLowerCase().includes(q) ? "" : "none";
+    });
+  });
+}
+
+function renderProv() {
+  const cont = document.getElementById("itemsProv");
+  cont.innerHTML = "";
+  const divTodos = document.createElement("div");
+  divTodos.className = "dd-item-single" + (provSeleccionado === "" ? " selected" : "");
+  divTodos.textContent = "Todos los proveedores";
+  divTodos.addEventListener("click", function() {
+    provSeleccionado = "";
+    actualizarLabelProv(); renderProv(); cargar();
+    document.getElementById("listProv").classList.remove("open");
+    document.getElementById("btnProv").classList.remove("active");
+  });
+  cont.appendChild(divTodos);
+  proveedoresList.forEach(p => {
+    const div = document.createElement("div");
+    div.className = "dd-item-single" + (provSeleccionado === p.codigo ? " selected" : "");
+    div.textContent = p.codigo + " - " + p.nombre;
+    div.addEventListener("click", function() {
+      provSeleccionado = p.codigo;
+      actualizarLabelProv(); renderProv(); cargar();
+      document.getElementById("listProv").classList.remove("open");
+      document.getElementById("btnProv").classList.remove("active");
+    });
+    cont.appendChild(div);
+  });
+}
+
+function actualizarLabelProv() {
+  const lbl = document.getElementById("lblProv");
+  if (!provSeleccionado) { lbl.textContent = "Todos los proveedores"; return; }
+  const nombre = mapaNombresProv[provSeleccionado];
+  lbl.textContent = nombre ? (provSeleccionado + " - " + nombre) : provSeleccionado;
+}
+
+async function cargar() {
+  document.getElementById("contenido").innerHTML = "<div class='loading'><div class='spinner'></div><br>Calculando estado del inventario...</div>";
+  document.getElementById("distGrid").style.display = "none";
+  const meses = localStorage.getItem("periodo_ventas") || "6";
+  let url = "/api/dashboard-inventario?meses=" + meses + "&detalle=1";
+  if (provSeleccionado) url += "&co_prov=" + encodeURIComponent(provSeleccionado);
+  const res  = await fetch(url);
+  const data = await res.json();
+  if (data.error) {
+    document.getElementById("contenido").innerHTML = "<div class='estado-area'><p style='color:#C00000'>" + data.error + "</p></div>";
+    return;
+  }
+  todosLosDatos = data.registros || [];
+  poblarSuc(todosLosDatos);
+  sortCol = ""; colResaltada = ""; filaResaltada = -1;
+  filtrar();
+}
+
+function renderDistGrid(total) {
+  total = total || todosLosDatos.length;
+  let html = "<div class='dist-item todos" + (estadoFiltro==="" ? " selected" : "") + "' onclick=\"setEstadoFiltro('')\">" +
+    "<div class='dist-label'>Todos</div><div class='dist-valor'>" + total.toLocaleString() + "</div><div class='dist-pct'>100% del total</div></div>";
+  distribucionData.forEach(d => {
+    const cls = CLASES[d.estado];
+    const sel = estadoFiltro === d.estado ? " selected" : "";
+    html += "<div class='dist-item " + cls + sel + "' onclick=\"setEstadoFiltro('" + d.estado + "')\">" +
+      "<div class='dist-label'>" + ICONOS[d.estado] + " " + LABELS[d.estado].toUpperCase() + "</div>" +
+      "<div class='dist-valor'>" + d.cantidad.toLocaleString() + "</div>" +
+      "<div class='dist-pct'>" + d.porcentaje + "% del total</div></div>";
+  });
+  document.getElementById("distGrid").innerHTML = html;
+  document.getElementById("distGrid").style.display = "grid";
+}
+
+function setEstadoFiltro(estado) {
+  estadoFiltro = estado;
+  renderDistGrid();
+  paginaActual = 1;
+  filtrar();
+}
+
+// --- Desactivacion (servidor): dos niveles en el mismo JSON ---
+// ["sku","SC"]   -> global por sucursal (afecta TODOS los modulos)
+// ["sku","SC04"] -> solo ese almacen (afecta Dashboard y Estado de Inventario)
+let desactivadosSet = new Set();  // claves "sku|codigo"
+
+async function cargarDesactivados() {
+  try {
+    const res = await fetch("/api/articulos-desactivados");
+    const lista = await res.json();
+    desactivadosSet = new Set(lista.map(x => x.sku + "|" + x.sucursal));
+  } catch (e) {
+    console.error("No se pudo cargar articulos desactivados:", e);
+    desactivadosSet = new Set();
+  }
+}
+
+function esDesactGlobal(d) {
+  return desactivadosSet.has(d.sku + "|" + d.sucursal);
+}
+function esArtActivo(d) {
+  if (esDesactGlobal(d)) return false;
+  if (d.almacen && desactivadosSet.has(d.sku + "|" + d.almacen)) return false;
+  return true;
+}
+
+function filtrar() {
+  const q = document.getElementById("searchInput").value.toLowerCase();
+  const baseParaStats = todosLosDatos.filter(d =>
+    selSuc.has(d.sucursal) &&
+    (d.sku + d.descripcion).toLowerCase().includes(q) &&
+    esArtActivo(d)
+  );
+  recalcularDistribucion(baseParaStats);
+  datosFiltrados = todosLosDatos.filter(d =>
+    selSuc.has(d.sucursal) &&
+    (d.sku + d.descripcion).toLowerCase().includes(q) &&
+    (estadoFiltro === "" || d.estado === estadoFiltro)
+  );
+  paginaActual = 1;
+  renderTabla();
+}
+
+function recalcularDistribucion(base) {
+  const conteo = { OPTIMO: 0, CRITICO: 0, EXCESO: 0, SIN_STOCK: 0, SIN_VENTA: 0 };
+  base.forEach(d => { if (conteo.hasOwnProperty(d.estado)) conteo[d.estado]++; });
+  const total = base.length || 1;
+  distribucionData = Object.keys(conteo).map(estado => ({
+    estado, cantidad: conteo[estado],
+    porcentaje: Math.round((conteo[estado] / total) * 1000) / 10
+  }));
+  renderDistGrid(base.length);
+}
+
+function refrescarStatsYTabla() {
+  const q = document.getElementById("searchInput").value.toLowerCase();
+  const baseParaStats = todosLosDatos.filter(d =>
+    selSuc.has(d.sucursal) &&
+    (d.sku + d.descripcion).toLowerCase().includes(q) &&
+    esArtActivo(d)
+  );
+  recalcularDistribucion(baseParaStats);
+  renderTabla();
+}
+
+async function toggleArticuloActivo(sku, almacen) {
+  const key = sku + "|" + almacen;
+  const eraActivo = !desactivadosSet.has(key);
+  // Actualizacion optimista de la UI
+  if (eraActivo) desactivadosSet.add(key); else desactivadosSet.delete(key);
+  refrescarStatsYTabla();
+  try {
+    const res = await fetch("/api/articulos-desactivados/toggle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sku: sku, sucursal: almacen })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || "Error del servidor");
+    // Sincronizar con la respuesta autoritativa del servidor
+    if (data.activo) desactivadosSet.delete(key); else desactivadosSet.add(key);
+  } catch (e) {
+    // Revertir si el servidor no guardo el cambio
+    if (eraActivo) desactivadosSet.delete(key); else desactivadosSet.add(key);
+    alert("No se pudo guardar el cambio en el servidor: " + e.message);
+    refrescarStatsYTabla();
+  }
+}
+
+function sortByInv(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = true; }
+  colResaltada = col;
+  renderTabla();
+}
+function sortIconInv(col) {
+  if (sortCol !== col) return " &#8597;";
+  return sortAsc ? " &#8593;" : " &#8595;";
+}
+function toggleFilaInv(idx) {
+  filaResaltada = (filaResaltada === idx) ? -1 : idx;
+  renderTabla();
+}
+
+function estadoBadge(e) {
+  return "<span class='est-badge " + CLASES[e] + "'>" + ICONOS[e] + " " + LABELS[e] + "</span>";
+}
+
+function renderTabla() {
+  const contenido = document.getElementById("contenido");
+  if (!datosFiltrados.length) {
+    contenido.innerHTML = "<div class='estado-area'><p>No hay registros con los filtros aplicados</p></div>";
+    return;
+  }
+
+  if (sortCol) {
+    datosFiltrados.sort((a, b) => {
+      let va = a[sortCol], vb = b[sortCol];
+      if (typeof va === "string") va = va.toLowerCase();
+      if (typeof vb === "string") vb = vb.toLowerCase();
+      if (va < vb) return sortAsc ? -1 : 1;
+      if (va > vb) return sortAsc ? 1 : -1;
+      return 0;
+    });
+  }
+
+  const totalPags = Math.ceil(datosFiltrados.length / POR_PAGINA);
+  if (paginaActual > totalPags) paginaActual = totalPags;
+  const inicio = (paginaActual - 1) * POR_PAGINA;
+  const pagina = datosFiltrados.slice(inicio, inicio + POR_PAGINA);
+
+  let opciones = "";
+  for (let i = 1; i <= totalPags; i++)
+    opciones += "<option value='" + i + "'" + (i===paginaActual?" selected":"") + ">Pag " + i + " de " + totalPags + "</option>";
+  const selectorTam = "<select class='pag-select' onchange='cambiarTam(this.value)' style='margin-left:8px;'>" +
+    [25,50,100].map(n => "<option value='" + n + "'" + (n===POR_PAGINA?" selected":"") + ">" + n + " / pag</option>").join("") + "</select>";
+  const paginador = "<div class='paginador'>" +
+    "<span class='pag-info'>" + datosFiltrados.length.toLocaleString() + " registros &nbsp;|&nbsp; mostrando " + (inicio+1) + " - " + Math.min(inicio+POR_PAGINA, datosFiltrados.length) + "</span>" +
+    "<div style='display:flex;gap:8px;align-items:center;'>" + selectorTam +
+    "<select class='pag-select' onchange='irPagina(this.value)'>" + opciones + "</select></div></div>";
+
+  const colCls = function(col) { return colResaltada === col ? " col-resaltada" : ""; };
+
+  let filas = pagina.map((d, i) => {
+    const idxGlobal = inicio + i;
+    const filaCls = filaResaltada === idxGlobal ? " fila-resaltada" : "";
+    const bloqueoGlobal = esDesactGlobal(d);
+    const activo = esArtActivo(d);
+    const inactivaCls = activo ? "" : " fila-inactiva";
+    let toggleHtml;
+    if (bloqueoGlobal) {
+      toggleHtml = "<label class='art-switch' title='Desactivado global (toda la sucursal). Se reactiva desde la administracion del JSON.'>" +
+        "<input type='checkbox' disabled><span class='art-slider'></span></label>" +
+        "<span class='lock-global'>&#128274; global</span>";
+    } else if (!d.almacen) {
+      toggleHtml = "<label class='art-switch' title='Sin registro de almacen en stock (solo ventas)'>" +
+        "<input type='checkbox' checked disabled><span class='art-slider'></span></label>";
+    } else {
+      toggleHtml = "<label class='art-switch'><input type='checkbox' " + (activo ? "checked" : "") +
+        " onchange=\"toggleArticuloActivo('" + d.sku + "','" + d.almacen + "')\"><span class='art-slider'></span></label>";
+    }
+    return "<tr class='" + (filaCls + inactivaCls).trim() + "' onclick=\"toggleFilaInv(" + idxGlobal + ")\" style='cursor:pointer'>" +
+    "<td class='center' onclick='event.stopPropagation()'>" + toggleHtml + "</td>" +
+    "<td class='cod" + colCls("sku") + "'>" + d.sku + "</td>" +
+    "<td class='" + colCls("descripcion").trim() + "'>" + d.descripcion + "</td>" +
+    "<td class='" + colCls("sucursal").trim() + "'><span class='suc-badge'>" + d.sucursal + "</span></td>" +
+    "<td class='center" + colCls("almacen") + "'>" + (d.almacen || "-") + "</td>" +
+    "<td class='center" + colCls("region") + "'>" + d.region + "</td>" +
+    "<td class='right" + colCls("stock") + "'>" + d.stock.toLocaleString() + "</td>" +
+    "<td class='right" + colCls("pvd") + "'>" + d.pvd.toFixed(3) + "</td>" +
+    "<td class='right" + colCls("punto_min") + "'>" + d.punto_min.toLocaleString() + "</td>" +
+    "<td class='right" + colCls("punto_max") + "'>" + d.punto_max.toLocaleString() + "</td>" +
+    "<td class='center" + colCls("estado") + "'>" + estadoBadge(d.estado) + "</td>" +
+    "</tr>";
+  }).join("");
+
+  const encCols = [
+    ["sku","Articulo",""], ["descripcion","Descripcion",""], ["sucursal","Sucursal",""],
+    ["almacen","Almacen","center"],
+    ["region","Region","center"], ["stock","Stock","right"], ["pvd","PVD","right"],
+    ["punto_min","Punto Min","right"], ["punto_max","Punto Max","right"], ["estado","Estado","center"]
+  ];
+  let thHtml = "<th class='center'>Activo</th>";
+  encCols.forEach(function(c) {
+    const col = c[0], label = c[1], extra = c[2];
+    const clase = (extra + colCls(col)).trim();
+    const claseAttr = clase ? " class='" + clase + "'" : "";
+    thHtml += "<th" + claseAttr + " onclick='sortByInv(&quot;" + col + "&quot;)'>" + label + sortIconInv(col) + "</th>";
+  });
+
+  contenido.innerHTML = paginador +
+    "<div class='tabla-scroll'><table><thead><tr>" + thHtml + "</tr></thead><tbody>" + filas + "</tbody></table></div>" + paginador;
+}
+
+function irPagina(p) {
+  paginaActual = parseInt(p);
+  renderTabla();
+  document.getElementById("contenido").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function cambiarTam(n) { POR_PAGINA = parseInt(n); paginaActual = 1; renderTabla(); }
+
+window.onload = async function() {
+  // Limpieza unica: eliminar claves viejas de localStorage (ya migradas al servidor)
+  Object.keys(localStorage)
+    .filter(k => k.startsWith("inv_art_activo_"))
+    .forEach(k => localStorage.removeItem(k));
+
+  const params = new URLSearchParams(window.location.search);
+  const estadoUrl = params.get("estado");
+  if (estadoUrl && LABELS.hasOwnProperty(estadoUrl)) {
+    estadoFiltro = estadoUrl;
+  }
+  await Promise.all([poblarProv(), cargarDesactivados()]);
+  cargar();
+};
+</script>
+{% endblock %}

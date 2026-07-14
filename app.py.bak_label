@@ -1748,11 +1748,7 @@ def api_dashboard_inventario():
             RTRIM(s.co_art)            AS sku,
             ISNULL(RTRIM(su.campo2), \'\') AS region,
             SUM(CASE WHEN RTRIM(s.tipo) = \'ACT\' THEN s.stock ELSE 0 END) AS stock_act,
-            MAX(RTRIM(a.art_des))       AS desc_bd,
-            RTRIM(s.co_alma)            AS almacen,
-            MAX(CASE WHEN s.stock > 0 THEN ROUND(dbo.AgpConsultarCostoxAlmacenxFecha(
-                s.co_art, s.co_alma, GETDATE(), 'UND', '7', 'USD', 1
-            ), 2) ELSE 0 END)           AS costo
+            MAX(RTRIM(a.art_des))       AS desc_bd
         FROM saStockAlmacen s
         LEFT JOIN saSucursal su ON RTRIM(LEFT(s.co_alma,2)) = RTRIM(su.co_sucur)
         LEFT JOIN saArticulo a ON RTRIM(s.co_art) = RTRIM(a.co_art)
@@ -1776,8 +1772,6 @@ def api_dashboard_inventario():
         else: return "Z"
 
     conteo = {"OPTIMO": 0, "CRITICO": 0, "EXCESO": 0, "SIN_STOCK": 0, "SIN_VENTA": 0}
-    unidades = {"OPTIMO": 0.0, "CRITICO": 0.0, "EXCESO": 0.0, "SIN_STOCK": 0.0, "SIN_VENTA": 0.0}
-    monto    = {"OPTIMO": 0.0, "CRITICO": 0.0, "EXCESO": 0.0, "SIN_STOCK": 0.0, "SIN_VENTA": 0.0}
     skus_procesados = set()
     criticos = []
     excesos = []
@@ -1788,10 +1782,8 @@ def api_dashboard_inventario():
     for v in ventas_data:
         desc_por_sku[v["sku"]] = v["descripcion"]
 
-    for suc, sku, region, stock_act, desc_bd, almacen, costo in stock_rows:
-        inactivo_global = (sku, suc) in desactivados
-        inactivo_alma   = (sku, almacen) in desactivados
-        es_activo = not (inactivo_global or inactivo_alma)
+    for suc, sku, region, stock_act, desc_bd in stock_rows:
+        es_activo = (sku, suc) not in desactivados
         stock_act = float(stock_act)
         region = region or "CENTRO-OCCIDENTE"
         lead_time = lt.get(region.upper(), 35)
@@ -1832,8 +1824,6 @@ def api_dashboard_inventario():
 
         if es_activo:
             conteo[estado] += 1
-            unidades[estado] += stock_act
-            monto[estado]    += stock_act * float(costo or 0)
             skus_procesados.add(k)
 
             if estado == "CRITICO":
@@ -1857,7 +1847,6 @@ def api_dashboard_inventario():
             "stock": round(stock_act, 0), "pvd": round(pvd, 4),
             "punto_min": round(p_min, 1), "punto_max": round(p_max, 1),
             "estado": estado, "activo": es_activo,
-            "almacen": almacen, "desact_global": inactivo_global,
         })
 
     criticos.sort(key=lambda r: r["faltante"], reverse=True)
@@ -1896,17 +1885,15 @@ def api_dashboard_inventario():
             "stock": 0, "pvd": round(pvd, 4),
             "punto_min": round(p_min, 1), "punto_max": round(p_max, 1),
             "estado": "SIN_STOCK", "activo": True,
-            "almacen": "", "desact_global": False,
         })
 
     total = sum(conteo.values()) or 1
     resultado = []
-    orden = [("OPTIMO", "Optimo"), ("CRITICO", "Critico"), ("EXCESO", "SobreInventario"),
+    orden = [("OPTIMO", "Optimo"), ("CRITICO", "Critico"), ("EXCESO", "Exceso"),
              ("SIN_STOCK", "Sin Stock"), ("SIN_VENTA", "Sin Venta")]
     for key, label in orden:
         resultado.append({
             "estado": key, "label": label, "cantidad": conteo[key],
-            "unidades": round(unidades[key], 2), "monto": round(monto[key], 2),
             "porcentaje": round(conteo[key] / total * 100, 1)
         })
 
