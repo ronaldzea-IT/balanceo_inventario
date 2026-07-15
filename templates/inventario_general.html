@@ -371,8 +371,35 @@ function refrescarStatsYTabla() {
   renderTabla();
 }
 
-async function toggleArticuloActivo(sku, almacen) {
-  const key = sku + "|" + almacen;
+async function toggleArticuloActivo(sku, sucursal, almacen) {
+  const keyGlobal = sku + "|" + sucursal;
+  const keyAlma   = almacen ? sku + "|" + almacen : null;
+
+  // Decidir sobre que nivel opera este clic
+  let codigo;
+  if (desactivadosSet.has(keyGlobal)) {
+    // Reactivar una desactivacion GLOBAL (afecta ventas y todos los modulos)
+    if (!confirm("Este articulo esta desactivado GLOBALMENTE (toda la sucursal " + sucursal + ").\n\nAl reactivarlo volvera a contar en Ventas, Min-Max, Balanceo y todos los modulos.\n\nContinuar?")) {
+      renderTabla();
+      return;
+    }
+    codigo = sucursal;
+  } else if (keyAlma && desactivadosSet.has(keyAlma)) {
+    // Reactivar una desactivacion por almacen
+    codigo = almacen;
+  } else if (almacen) {
+    // Desactivar este almacen (solo Dashboard y Estado de Inventario)
+    codigo = almacen;
+  } else {
+    // Fila sin almacen (solo ventas): opera a nivel global
+    if (!confirm("Este articulo no tiene registro de almacen; se desactivara GLOBALMENTE (sucursal " + sucursal + "), afectando ventas y todos los modulos.\n\nContinuar?")) {
+      renderTabla();
+      return;
+    }
+    codigo = sucursal;
+  }
+
+  const key = sku + "|" + codigo;
   const eraActivo = !desactivadosSet.has(key);
   // Actualizacion optimista de la UI
   if (eraActivo) desactivadosSet.add(key); else desactivadosSet.delete(key);
@@ -381,7 +408,7 @@ async function toggleArticuloActivo(sku, almacen) {
     const res = await fetch("/api/articulos-desactivados/toggle", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sku: sku, sucursal: almacen })
+      body: JSON.stringify({ sku: sku, sucursal: codigo })
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || "Error del servidor");
@@ -452,21 +479,17 @@ function renderTabla() {
   let filas = pagina.map((d, i) => {
     const idxGlobal = inicio + i;
     const filaCls = filaResaltada === idxGlobal ? " fila-resaltada" : "";
-    const bloqueoGlobal = esDesactGlobal(d);
+    const desactGlobal = esDesactGlobal(d);
     const activo = esArtActivo(d);
     const inactivaCls = activo ? "" : " fila-inactiva";
-    let toggleHtml;
-    if (bloqueoGlobal) {
-      toggleHtml = "<label class='art-switch' title='Desactivado global (toda la sucursal). Se reactiva desde la administracion del JSON.'>" +
-        "<input type='checkbox' disabled><span class='art-slider'></span></label>" +
-        "<span class='lock-global'>&#128274; global</span>";
-    } else if (!d.almacen) {
-      toggleHtml = "<label class='art-switch' title='Sin registro de almacen en stock (solo ventas)'>" +
-        "<input type='checkbox' checked disabled><span class='art-slider'></span></label>";
-    } else {
-      toggleHtml = "<label class='art-switch'><input type='checkbox' " + (activo ? "checked" : "") +
-        " onchange=\"toggleArticuloActivo('" + d.sku + "','" + d.almacen + "')\"><span class='art-slider'></span></label>";
-    }
+    const titulo = desactGlobal
+      ? "Desactivado global (toda la sucursal). Clic para reactivar en todos los modulos."
+      : (d.almacen ? "Activar/desactivar este almacen" : "Sin registro de almacen: activa/desactiva a nivel global (sucursal)");
+    let toggleHtml = "<label class='art-switch' title='" + titulo + "'>" +
+      "<input type='checkbox' " + (activo ? "checked" : "") +
+      " onchange=\"toggleArticuloActivo('" + d.sku + "','" + d.sucursal + "','" + (d.almacen || "") + "')\">" +
+      "<span class='art-slider'></span></label>" +
+      (desactGlobal ? "<span class='lock-global'>&#128274; global</span>" : "");
     return "<tr class='" + (filaCls + inactivaCls).trim() + "' onclick=\"toggleFilaInv(" + idxGlobal + ")\" style='cursor:pointer'>" +
     "<td class='center' onclick='event.stopPropagation()'>" + toggleHtml + "</td>" +
     "<td class='cod" + colCls("sku") + "'>" + d.sku + "</td>" +
